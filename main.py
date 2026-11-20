@@ -7,7 +7,7 @@ from flask import Flask, render_template, jsonify
 from jira import JIRA
 
 # =====================================================================
-# 🟢 1. LOAD ENVIRONMENT VARIABLES FIRST (Before local module imports)
+# 🟢 1. LOAD ENVIRONMENT VARIABLES FIRST
 # =====================================================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 env_path = os.path.join(BASE_DIR, ".env")
@@ -22,7 +22,6 @@ elif os.path.exists(env_path_txt):
 else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
 
-# Import publisher after loading .env so credentials are available
 from confluence_publisher import publish_to_confluence
 
 app = Flask(__name__)
@@ -35,7 +34,6 @@ JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_TOKEN = os.getenv("JIRA_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
 
-# Statuses defined in your Jira workflow for the Candidates tab
 STATUS_CANDIDATES = [
     "DEV BACKLOG",
     "ON HOLD",
@@ -45,7 +43,6 @@ STATUS_CANDIDATES = [
     "IN TEST"
 ]
 
-# Type standardization (in case Jira returns values in Portuguese)
 TYPE_TRANSLATION = {
     "história": "Story",
     "historia": "Story",
@@ -55,9 +52,6 @@ TYPE_TRANSLATION = {
     "erro": "Bug"
 }
 
-# =====================================================================
-# 📌 STATIC DATA (For tabs/charts not yet connected to live APIs)
-# =====================================================================
 READY_FOR_PRODUCTION_TICKETS = [
     {
         "snow": "CHG1326437",
@@ -65,7 +59,8 @@ READY_FOR_PRODUCTION_TICKETS = [
         "type": "Story",
         "cloud": "Sales",
         "status": "Ready For Production",
-        "alm_page": "CRMB2B-31284",
+        "alm_page_state": "ready",
+        "alm_page_url": "",
         "assignee": "Renan Kiel",
         "manual": "No",
         "logs": "No",
@@ -79,7 +74,6 @@ READY_FOR_PRODUCTION_TICKETS = [
     }
 ]
 
-# Horizontal Bar Chart Data
 CHART_DATA = {
     "labels": ["Today", "Tomorrow", "Day After", "In 3 Days", "In 4 Days"],
     "counts": [2, 3, 4, 1, 5]
@@ -87,13 +81,10 @@ CHART_DATA = {
 
 
 # =====================================================================
-# 🧩 ADF PARSING, READING & UPDATING FUNCTIONS (NO REGEX!)
+# 🧩 ADF PARSING & STATE EXTRACTION FUNCTIONS
 # =====================================================================
 def extract_plain_text_adf(adf_node):
-    """
-    Recursively traverses any ADF JSON block and merges all text elements.
-    Used both to read cell values and to generate clean summaries for the UI.
-    """
+    """Recursively traverses any ADF JSON block and merges all text elements."""
     if not isinstance(adf_node, dict):
         return ""
 
@@ -111,10 +102,7 @@ def extract_plain_text_adf(adf_node):
 
 
 def extract_prd_pr_adf(adf_description):
-    """
-    Navigates the ADF JSON tree searching for a 'table' node.
-    Identifies the 'PRD' column header and returns the value of the LAST data row.
-    """
+    """Extracts PRD PR value from the last row of the description table."""
     if not isinstance(adf_description, dict):
         return ""
 
@@ -166,12 +154,56 @@ def extract_prd_pr_adf(adf_description):
     return ""
 
 
+def find_inline_card_url_in_node(node):
+    """Finds the URL of the first 'inlineCard' inside a given node."""
+    if isinstance(node, list):
+        for item in node:
+            url = find_inline_card_url_in_node(item)
+            if url:
+                return url
+    elif isinstance(node, dict):
+        if node.get("type") == "inlineCard":
+            return node.get("attrs", {}).get("url", "")
+
+        for child in node.get("content", []):
+            url = find_inline_card_url_in_node(child)
+            if url:
+                return url
+
+    return ""
+
+
+def inspect_alm_page_status(description_adf):
+    """
+    Inspects the Jira description ADF for the ALM PAGE panel.
+    Returns:
+        (state, url)
+        - state: 'none' (panel does not exist)
+        - state: 'ready' (panel exists and URL ends with CRMB2B-0 -> ready to create)
+        - state: 'exists' (panel exists and URL points to an actual page -> already created)
+    """
+    if not isinstance(description_adf, dict):
+        return "none", ""
+
+    for block in description_adf.get("content", []):
+        if isinstance(block, dict) and block.get("type") == "panel":
+            panel_text = extract_plain_text_adf(block).upper()
+
+            if "ALM PAGE" in panel_text:
+                card_url = find_inline_card_url_in_node(block).strip()
+
+                # If URL ends with CRMB2B-0 (or placeholder), it is ready for creation
+                if card_url.endswith("CRMB2B-0") or not card_url:
+                    return "ready", card_url
+                else:
+                    # It already points to a real page!
+                    return "exists", card_url
+
+    return "none", ""
+
+
 def update_inline_card_in_node(node, new_url):
-    """
-    Recursively searches inside a node (such as the ALM PAGE panel)
-    for an 'inlineCard' element and updates its 'url' attribute.
-    Returns True if an inlineCard was found and updated.
-    """
+    """Recursively updates the URL of an inlineCard."""
     if isinstance(node, list):
         for item in node:
             if update_inline_card_in_node(item, new_url):
@@ -191,10 +223,7 @@ def update_inline_card_in_node(node, new_url):
 
 
 def update_alm_page_panel_adf(adf_description, new_url):
-    """
-    Finds the Info Panel containing 'ALM PAGE' inside the Jira description ADF
-    and updates the inlineCard URL with the newly generated Confluence link.
-    """
+    """Updates the ALM PAGE Info Panel inlineCard with the new Confluence URL."""
     if not isinstance(adf_description, dict):
         return False
 
@@ -203,12 +232,9 @@ def update_alm_page_panel_adf(adf_description, new_url):
             panel_text = extract_plain_text_adf(block).upper()
 
             if "ALM PAGE" in panel_text:
-                # 1. Try to update an existing inlineCard inside this panel
                 if update_inline_card_in_node(block, new_url):
                     return True
 
-                # 2. Fallback: if the panel exists but has no inlineCard yet,
-                # insert or replace the second paragraph with the inlineCard
                 panel_content = block.setdefault("content", [])
                 inline_card_paragraph = {
                     "type": "paragraph",
@@ -233,10 +259,7 @@ def update_alm_page_panel_adf(adf_description, new_url):
 
 
 def update_jira_description_adf(ticket_id, updated_adf):
-    """
-    Sends a PUT request to Jira REST API v3 to overwrite the issue's
-    description field with the updated ADF JSON structure.
-    """
+    """Overwrites Jira issue description with the updated ADF JSON."""
     endpoint = f"{JIRA_URL}/rest/api/3/issue/{ticket_id}"
     headers = {
         "Accept": "application/json",
@@ -255,7 +278,6 @@ def update_jira_description_adf(ticket_id, updated_adf):
         auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
     )
 
-    # Jira REST API v3 returns 204 No Content on a successful issue update
     if response.status_code in [200, 204]:
         return True, "Jira description updated successfully."
     else:
@@ -263,18 +285,14 @@ def update_jira_description_adf(ticket_id, updated_adf):
 
 
 # =====================================================================
-# 🔄 JIRA REST API v3 INTEGRATION (NATIVE ADF JSON)
+# 🔄 JIRA REST API v3 INTEGRATION
 # =====================================================================
 def fetch_jira_data():
-    """
-    Connects to Jira REST API v3 to receive descriptions in native ADF JSON format,
-    extracting structured table fields while preserving raw ADF for Confluence.
-    """
     candidates_groups = {}
     done_list = []
 
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_TOKEN or not JIRA_PROJECT_KEY:
-        print("⚠️ Error: Jira credentials are missing or incomplete in your .env file!")
+        print("⚠️ Error: Jira credentials missing or incomplete in .env!")
         error_group = [
             {
                 "version": "⚠️ Error: Jira credentials missing/incomplete in .env!",
@@ -318,6 +336,9 @@ def fetch_jira_data():
 
             prd_pr = extract_prd_pr_adf(description_adf)
 
+            # Inspect ALM Page panel status ('none', 'ready', 'exists')
+            alm_state, alm_url = inspect_alm_page_status(description_adf)
+
             ticket_obj = {
                 "snow": "",
                 "ticket": issue.key,
@@ -326,7 +347,8 @@ def fetch_jira_data():
                 "status": current_status,
                 "description": readable_description,
                 "description_adf": description_adf,
-                "alm_page": issue.key,
+                "alm_page_state": alm_state,  # 🟢 'none' | 'ready' | 'exists'
+                "alm_page_url": alm_url,      # 🟢 Existing Confluence link if any
                 "assignee": assignee_name,
                 "manual": "No",
                 "logs": "No",
@@ -397,10 +419,11 @@ def home():
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
 def publish_page(ticket_id):
     """
-    1. Fetches fresh ticket details (including raw ADF description) from Jira.
-    2. Publishes the ALM page to Confluence using the JSON template.
-    3. Updates the 'ALM PAGE' Info Panel inside the Jira ticket's description
-       with the generated Confluence URL.
+    1. Fetches fresh issue details from Jira.
+    2. Verifies ALM PAGE Info Panel:
+       - If panel does NOT exist: rejects action.
+       - If URL does NOT end with 'CRMB2B-0': page already exists! Returns existing URL.
+       - If URL ends with 'CRMB2B-0': publishes to Confluence and updates Jira.
     """
     try:
         jira = JIRA(
@@ -409,18 +432,33 @@ def publish_page(ticket_id):
             options={"rest_api_version": "3"}
         )
 
-        # 1. Fetch live issue details
         issue = jira.issue(ticket_id)
         description_adf = issue.raw.get("fields", {}).get("description")
 
+        alm_state, existing_url = inspect_alm_page_status(description_adf)
+
+        # Condition 3: No ALM PAGE panel at all
+        if alm_state == "none":
+            return jsonify({
+                "success": False,
+                "message": f"Ticket {ticket_id} does not have an 'ALM PAGE' Info Panel in its description yet."
+            })
+
+        # Condition 2: Page already exists (URL does not end in CRMB2B-0)
+        if alm_state == "exists":
+            return jsonify({
+                "success": True,
+                "already_exists": True,
+                "url": existing_url
+            })
+
+        # Condition 1: URL ends with CRMB2B-0 -> proceed with creation!
         readable_description = (
             extract_plain_text_adf(description_adf)
             if description_adf
             else "No description"
         )
-
         prd_pr = extract_prd_pr_adf(description_adf)
-
         assignee_name = (
             issue.fields.assignee.displayName
             if issue.fields.assignee
@@ -437,29 +475,25 @@ def publish_page(ticket_id):
             "pr_uat": ""
         }
 
-        # 2. Publish page to Confluence
         confluence_result = publish_to_confluence(ticket_data)
         if not confluence_result.get("success"):
             return jsonify(confluence_result)
 
         generated_url = confluence_result.get("url")
 
-        # 3. Update the 'ALM PAGE' Info Panel in the Jira ticket's ADF description
-        if description_adf:
-            panel_updated = update_alm_page_panel_adf(description_adf, generated_url)
+        # Update Jira description with the new page link
+        update_alm_page_panel_adf(description_adf, generated_url)
+        jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
 
-            if panel_updated:
-                jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
-                if not jira_ok:
-                    return jsonify({
-                        "success": False,
-                        "message": f"Page created ({generated_url}), but Jira update failed: {jira_msg}"
-                    })
-            else:
-                print(f"⚠️ Warning: 'ALM PAGE' panel not found in {ticket_id} description.")
+        if not jira_ok:
+            return jsonify({
+                "success": False,
+                "message": f"Confluence page created ({generated_url}), but failed to update Jira: {jira_msg}"
+            })
 
         return jsonify({
             "success": True,
+            "already_exists": False,
             "url": generated_url
         })
 

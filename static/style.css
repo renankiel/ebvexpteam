@@ -331,25 +331,37 @@ body {
   color: #e6edf3;
 }
 
-/* --- CONFLUENCE DYNAMIC BUTTONS & LINKS --- */
+/* --- OFFICIAL JIRA CONFLUENCE BUTTON STYLE --- */
 .btn-confluence {
-  background-color: #0747a6; /* Atlassian Blue */
-  color: #ffffff;
+  background-color: #1d7c00; /* Jira Official Green */
+  color: #ffffff !important;  /* Jira White Text */
   border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 12px;
+  border-radius: 3px;         /* Jira Standard Roundness */
+  font-size: 14px;
+  font-weight: 500;           /* Jira Font Weight */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.1s ease-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .btn-confluence:hover {
-  background-color: #0052cc;
+  background-color: #155c00; /* Jira Hover Green */
 }
 
+.btn-confluence:active {
+  background-color: #0f4000; /* Jira Active/Pressed Green */
+}
+
+/* Error/Retry State */
 .btn-confluence.btn-error {
-  background-color: #de350b; /* Atlassian Red */
+  background-color: #de350b; /* Atlassian Error Red */
 }
 
 .btn-confluence.btn-error:hover {
@@ -378,3 +390,11 @@ body {
   background-color: #4cd084;
   color: #1d2125;
 }
+
+.no-panel-text {
+  color: #5c6b7d;
+  font-size: 14px;
+  font-weight: bold;
+  user-select: none;
+}
+

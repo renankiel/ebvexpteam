@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="jira-container">
-        <!-- Cabeçalho estilo Jira -->
+        <!-- Header -->
         <header class="jira-header">
             <div class="project-info">
                 <span class="project-avatar">📊</span>
@@ -20,7 +20,7 @@
             </div>
         </header>
 
-        <!-- Navegação pelas 4 Abas -->
+        <!-- Tabs -->
         <div class="tabs">
             <button class="tab-button active" onclick="openTab(event, 'dashboard')">Dashboard</button>
             <button class="tab-button" onclick="openTab(event, 'candidates')">Candidates</button>
@@ -28,7 +28,7 @@
             <button class="tab-button" onclick="openTab(event, 'done')">Done</button>
         </div>
 
-        <!-- ABA 1: Dashboard (Gráfico de Barras Horizontais) -->
+        <!-- TAB 1: Dashboard -->
         <div id="dashboard" class="tab-content active">
             <section class="metrics-section">
                 <div class="metric-card">
@@ -40,7 +40,7 @@
             </section>
         </div>
 
-        <!-- ABA 2: Candidates -->
+        <!-- TAB 2: Candidates -->
         <div id="candidates" class="tab-content">
             <div class="table-title candidates-title">Candidates</div>
             <div class="table-responsive">
@@ -53,7 +53,7 @@
                             <th>Cloud</th>
                             <th>Status</th>
                             <th>Description</th>
-                            <th>ALM Page</th> <!-- 🟢 Now features the dynamic button -->
+                            <th>ALM Page</th>
                             <th>Assignee</th>
                             <th>Manual?</th>
                             <th>Logs?</th>
@@ -83,14 +83,24 @@
                                             {{ ticket.description }}
                                         </div>
                                     </td>
-                                    <!-- 🟢 Dynamic Confluence Button Cell -->
+
+                                    <!-- 🟢 Dynamic 3-State ALM Page Cell -->
                                     <td>
                                         <div id="alm-container-{{ ticket.ticket }}">
-                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                                📝 Create Page
-                                            </button>
+                                            {% if ticket.alm_page_state == 'exists' %}
+                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
+                                                    👁️ View Page
+                                                </a>
+                                            {% elif ticket.alm_page_state == 'ready' %}
+                                                <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create Page
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text" title="No ALM PAGE Info Panel in Jira description">—</span>
+                                            {% endif %}
                                         </div>
                                     </td>
+
                                     <td>
                                         <div class="assignee-cell">
                                             <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
@@ -114,7 +124,7 @@
             </div>
         </div>
 
-        <!-- ABA 3: Ready for Production -->
+        <!-- TAB 3: Ready for Production -->
         <div id="ready-for-production" class="tab-content">
             <div class="table-title ready-title">Ready for Production</div>
             <div class="table-responsive">
@@ -149,9 +159,17 @@
                                 <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
-                                        <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                            📝 Create Page
-                                        </button>
+                                        {% if ticket.alm_page_state == 'exists' %}
+                                            <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
+                                                👁️ View Page
+                                            </a>
+                                        {% elif ticket.alm_page_state == 'ready' %}
+                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create Page
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
                                     </div>
                                 </td>
                                 <td>
@@ -176,7 +194,7 @@
             </div>
         </div>
 
-        <!-- ABA 4: Done -->
+        <!-- TAB 4: Done -->
         <div id="done" class="tab-content">
             <div class="table-title done-title">Done</div>
             <div class="table-responsive">
@@ -211,9 +229,17 @@
                                 <td><span class="badge-status status-done">{{ ticket.status }}</span></td>
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
-                                        <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                            📝 Create Page
-                                        </button>
+                                        {% if ticket.alm_page_state == 'exists' %}
+                                            <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
+                                                👁️ View Page
+                                            </a>
+                                        {% elif ticket.alm_page_state == 'ready' %}
+                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create Page
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
                                     </div>
                                 </td>
                                 <td>
@@ -245,11 +271,10 @@
         </div>
     </div>
 
-    <!-- Script das Abas e do Gráfico -->
+    <!-- Scripts -->
     <script>
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
-            
             tabcontent = document.getElementsByClassName("tab-content");
             for (i = 0; i < tabcontent.length; i++) {
                 tabcontent[i].classList.remove("active");
@@ -264,15 +289,15 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // 🟢 ASYNC CONFLUENCE CREATION FUNCTION
+        // 🟢 Async Confluence Creation & Validation Function
         function createConfluencePage(ticketId) {
             const container = document.getElementById(`alm-container-${ticketId}`);
             if (!container) return;
-            
-            // 1. Set loading state
+
+            // 1. Loading state
             container.innerHTML = `<span class="loading-state">⏳ Creating...</span>`;
-            
-            // 2. Fire fetch POST request to Flask
+
+            // 2. Request backend
             fetch(`/publish-page/${ticketId}`, {
                 method: "POST",
                 headers: {
@@ -282,14 +307,13 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 3. Render clickable view link on success
+                    // Page created OR already exists -> render green View Page button
                     container.innerHTML = `
                         <a href="${data.url}" target="_blank" class="confluence-link-success">
                             👁️ View Page
                         </a>`;
                 } else {
-                    // 4. Fallback on failure
-                    alert(`Error creating page: ${data.message}`);
+                    alert(`Attention: ${data.message}`);
                     container.innerHTML = `
                         <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
                             ⚠️ Retry Create
@@ -305,7 +329,7 @@
             });
         }
 
-        // Renderização do Gráfico de Barras Horizontais do Chart.js
+        // Chart.js Horizontal Bar Chart
         const ctx = document.getElementById('productionChart').getContext('2d');
         const productionChart = new Chart(ctx, {
             type: 'bar',
@@ -326,28 +350,17 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false
-                    }
+                    legend: { display: false }
                 },
                 scales: {
                     x: {
-                        grid: {
-                            color: '#2d353f'
-                        },
-                        ticks: {
-                            color: '#8c9bab',
-                            stepSize: 1
-                        },
+                        grid: { color: '#2d353f' },
+                        ticks: { color: '#8c9bab', stepSize: 1 },
                         beginAtZero: true
                     },
                     y: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            color: '#8c9bab'
-                        }
+                        grid: { display: false },
+                        ticks: { color: '#8c9bab' }
                     }
                 }
             }
