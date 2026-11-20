@@ -66,7 +66,7 @@ READY_FOR_PRODUCTION_TICKETS = [
         "alm_page_url": "",
         "assignee": "Renan Kiel",
         "manual": "No",
-        "logs": "No",
+        "logs": "Yes",
         "pr_to_prod": "20945",
         "pr_validated": "No",
         "dev_signoff": "Yes",
@@ -188,9 +188,32 @@ def find_url_and_text_in_node(node):
     return "", ""
 
 
+def node_contains_media(node):
+    """
+    Recursively checks if an ADF node contains a media file
+    (e.g., 'mediaInline', 'media', 'mediaSingle' or attrs.type == 'file').
+    """
+    if isinstance(node, list):
+        return any(node_contains_media(item) for item in node)
+    elif isinstance(node, dict):
+        node_type = node.get("type", "")
+        if node_type in ["mediaInline", "media", "mediaSingle"]:
+            return True
+
+        attrs = node.get("attrs", {})
+        if attrs.get("type") == "file" and node_type.startswith("media"):
+            return True
+
+        for child in node.get("content", []):
+            if node_contains_media(child):
+                return True
+
+    return False
+
+
 def find_panel_table(adf_description, panel_keyword):
     """
-    Finds the Info Panel matching 'panel_keyword' (e.g., 'ALM PAGE' or 'SNOW')
+    Finds the Info Panel matching 'panel_keyword' (e.g., 'ALM PAGE', 'SNOW', 'DEPLOYMENT RESULTS')
     and returns the sibling 'table' block that immediately follows it in the ADF document.
     """
     if not isinstance(adf_description, dict):
@@ -258,6 +281,43 @@ def get_link_cell_from_table(table_node):
     if link_col_index < len(first_data_row):
         return first_data_row[link_col_index]
     return first_data_row[0]
+
+
+def check_deployment_results_logs(description_adf):
+    """
+    Checks the 'DEPLOYMENT RESULTS' panel and its sibling table.
+    Returns 'Yes' if every data row contains a media file in the FILE column (last cell).
+    Otherwise returns 'No'.
+    """
+    table_node = find_panel_table(description_adf, "DEPLOYMENT RESULTS")
+    if not table_node:
+        return "No"
+
+    rows = table_node.get("content", [])
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            continue
+        data_rows.append(cells)
+
+    if not data_rows:
+        return "No"
+
+    # In this table, the FILE column is always the last cell of each data row
+    for cells in data_rows:
+        file_cell = cells[-1]
+        if not node_contains_media(file_cell):
+            return "No"
+
+    return "Yes"
 
 
 def inspect_alm_page_status(description_adf):
@@ -420,13 +480,10 @@ def fetch_jira_data():
             has_manually = "manually" in labels_lower
 
             if has_pull_request:
-                # If pull-request exists (even if manually also exists) -> 'No'
                 manual_val = "No"
             elif has_manually:
-                # If only manually exists -> 'Yes'
                 manual_val = "Yes"
             else:
-                # If neither exists -> Dash
                 manual_val = "—"
 
             description_adf = issue.raw.get("fields", {}).get("description")
@@ -439,13 +496,16 @@ def fetch_jira_data():
 
             prd_pr = extract_prd_pr_adf(description_adf)
 
+            # 🟢 Inspect Deployment Results logs presence
+            logs_status = check_deployment_results_logs(description_adf)
+
             # 🟢 Apply 'N/A' overrides when MANUAL? is 'Yes'
             if manual_val == "Yes":
                 logs_val = "N/A"
                 pr_to_prod_val = "N/A"
                 pr_validated_val = "N/A"
             else:
-                logs_val = "No"
+                logs_val = logs_status
                 pr_to_prod_val = prd_pr
                 pr_validated_val = "Yes" if prd_pr else "No"
 
