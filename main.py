@@ -1,11 +1,11 @@
 import os
 import re
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from jira import JIRA
+from confluence_publisher import publish_to_confluence
 
-# 🟢 Absolute path finder to ensure .env is correctly loaded
-# This guarantees that the .env file is found even if you run the terminal from another folder!
+# Absolute path finder to ensure .env is correctly loaded
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 env_path = os.path.join(BASE_DIR, ".env")
 env_path_txt = os.path.join(BASE_DIR, ".env.txt")
@@ -29,15 +29,6 @@ JIRA_URL = os.getenv("JIRA_URL")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_TOKEN = os.getenv("JIRA_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
-
-# Credentials prepared for future integrations:
-CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
-CONFLUENCE_EMAIL = os.getenv("CONFLUENCE_EMAIL")
-CONFLUENCE_TOKEN = os.getenv("CONFLUENCE_TOKEN")
-
-SERVICENOW_URL = os.getenv("SERVICENOW_URL")
-SERVICENOW_USER = os.getenv("SERVICENOW_USER")
-SERVICENOW_PASSWORD = os.getenv("SERVICENOW_PASSWORD")
 
 # Statuses defined in your Jira workflow for the Candidates tab
 STATUS_CANDIDATES = [
@@ -101,18 +92,15 @@ def extract_plain_text_adf(adf_node):
     if not isinstance(adf_node, dict):
         return ""
 
-    # If the current node is a 'text' type, return its text value
     if adf_node.get("type") == "text":
         return adf_node.get("text", "")
 
-    # Otherwise, iterate through child elements inside 'content'
     text_pieces = []
     for child in adf_node.get("content", []):
         piece = extract_plain_text_adf(child)
         if piece:
             text_pieces.append(piece)
 
-    # Use a pipeline separator for rows/documents, and spaces for standard text blocks
     separator = " | " if adf_node.get("type") in ["tableRow", "doc"] else " "
     return separator.join(text_pieces).strip()
 
@@ -126,7 +114,6 @@ def extract_prd_pr_adf(adf_description):
         return ""
 
     try:
-        # 1. Get all table blocks inside the description
         tables = [
             block for block in adf_description.get("content", [])
             if isinstance(block, dict) and block.get("type") == "table"
@@ -145,7 +132,6 @@ def extract_prd_pr_adf(adf_description):
                 if not cells:
                     continue
 
-                # Check if this is a header row (contains tableHeader)
                 cell_types = [c.get("type") for c in cells]
                 if "tableHeader" in cell_types:
                     for idx, cell in enumerate(cells):
@@ -153,14 +139,11 @@ def extract_prd_pr_adf(adf_description):
                         if "PRD" in header_text:
                             prd_column_index = idx
                 else:
-                    # This is a standard data row (tableCell)
                     data_rows.append(cells)
 
-            # 2. If data rows exist, always extract from the very LAST row [-1]
             if data_rows:
                 last_row_cells = data_rows[-1]
 
-                # Use PRD index if found; fallback to column 4 [3] or the last cell
                 if prd_column_index is not None and prd_column_index < len(last_row_cells):
                     target_cell = last_row_cells[prd_column_index]
                 elif len(last_row_cells) >= 4:
@@ -189,7 +172,6 @@ def fetch_jira_data():
     candidates_groups = {}
     done_list = []
 
-    # Verify if credentials from .env are fully populated
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_TOKEN or not JIRA_PROJECT_KEY:
         print("⚠️ Error: Jira credentials are missing or incomplete in your .env file!")
         error_group = [
@@ -201,7 +183,6 @@ def fetch_jira_data():
         return error_group, []
 
     try:
-        # Enforce API v3 to native-retrieve description as an ADF JSON dictionary
         jira = JIRA(
             server=JIRA_URL,
             basic_auth=(JIRA_EMAIL, JIRA_TOKEN),
@@ -212,60 +193,51 @@ def fetch_jira_data():
         issues = jira.search_issues(jql_query, maxResults=100)
 
         for issue in issues:
-            # 1. Status Mapping (Normalized to uppercase)
             current_status = issue.fields.status.name.upper()
 
-            # 2. Standardize Issue Types to English (Story, Task, Bug)
             native_type = issue.fields.issuetype.name
             formatted_type = TYPE_TRANSLATION.get(native_type.lower(), native_type)
 
-            # 3. Handle Assignees
             assignee_name = (
                 issue.fields.assignee.displayName
                 if issue.fields.assignee
                 else "Unassigned"
             )
 
-            # 4. Determine Cloud (Scan label array for 'Service', default to 'Sales')
             labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
-            # 5. Extract Native ADF Description from 'raw' API v3 fields
             description_adf = issue.raw.get("fields", {}).get("description")
 
-            # Convert ADF to plain text exclusively for UI description cell
             readable_description = (
                 extract_plain_text_adf(description_adf)
                 if description_adf
                 else "No description"
             )
 
-            # 6. Dynamically extract the last PRD PR from the ADF table structure (Matches corrected name)
             prd_pr = extract_prd_pr_adf(description_adf)
 
-            # 7. Map fields into standard template format
             ticket_obj = {
-                "snow": "",                                         # Hard-coded for now
-                "ticket": issue.key,                                # From Jira API
-                "type": formatted_type,                             # From Jira API (standardized)
-                "cloud": cloud_val,                                 # Labels check / Fallback
-                "status": current_status,                           # From Jira API
-                "description": readable_description,                # Cleaned description text
-                "description_adf": description_adf,                 # Raw ADF JSON for future Confluence push
-                "alm_page": issue.key,                              # From Jira API
-                "assignee": assignee_name,                          # From Jira API
-                "manual": "No",                                     # Hard-coded
-                "logs": "No",                                       # Hard-coded
-                "pr_to_prod": prd_pr,                               # 🟢 Dynamic ADF parsed PR!
-                "pr_validated": "Yes" if prd_pr else "No",          # Validated automatically if PRD is found
+                "snow": "",
+                "ticket": issue.key,
+                "type": formatted_type,
+                "cloud": cloud_val,
+                "status": current_status,
+                "description": readable_description,
+                "description_adf": description_adf,
+                "alm_page": issue.key,
+                "assignee": assignee_name,
+                "manual": "No",
+                "logs": "No",
+                "pr_to_prod": prd_pr,
+                "pr_validated": "Yes" if prd_pr else "No",
                 "dev_signoff": "Yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "No",
                 "qa_signoff": "Yes" if current_status == "DONE" else "No",
                 "uat_signoff": "Yes" if current_status == "DONE" else "No",
-                "execution_order": "",                              # Hard-coded
-                "change_hour": ""                                   # Hard-coded
+                "execution_order": "",
+                "change_hour": ""
             }
 
-            # Route 'DONE' tickets to Done tab, all others to Candidates tab
             if current_status == "DONE":
                 done_list.append(ticket_obj)
             else:
@@ -278,7 +250,6 @@ def fetch_jira_data():
                     candidates_groups[version_name] = []
                 candidates_groups[version_name].append(ticket_obj)
 
-        # Structure candidates list as expected by HTML templates
         formatted_candidates = [
             {"version": version, "tickets": tickets}
             for version, tickets in candidates_groups.items()
@@ -306,7 +277,7 @@ def fetch_jira_data():
 
 
 # =====================================================================
-# 🌐 FLASK ROUTING
+# 🌐 FLASK ROUTING & ACTION ENDPOINTS
 # =====================================================================
 @app.route("/")
 def home():
@@ -318,8 +289,58 @@ def home():
         ready_prod_tickets=READY_FOR_PRODUCTION_TICKETS,
         done_tickets=done_data,
         chart_data=CHART_DATA,
-        jira_url=JIRA_URL or "https://atlassian.net"  # Safe fallback
+        jira_url=JIRA_URL or "https://atlassian.net"
     )
+
+
+@app.route("/publish-page/<ticket_id>", methods=["POST"])
+def publish_page(ticket_id):
+    """
+    Endpoint triggered via AJAX to fetch fresh ticket details from Jira
+    and publish them automatically to Confluence using the template JSON.
+    """
+    try:
+        jira = JIRA(
+            server=JIRA_URL,
+            basic_auth=(JIRA_EMAIL, JIRA_TOKEN),
+            options={"rest_api_version": "3"}
+        )
+        
+        # 1. Fetch live issue details
+        issue = jira.issue(ticket_id)
+        description_adf = issue.raw.get("fields", {}).get("description")
+        
+        readable_description = (
+            extract_plain_text_adf(description_adf)
+            if description_adf
+            else "No description"
+        )
+        
+        prd_pr = extract_prd_pr_adf(description_adf)
+        
+        assignee_name = (
+            issue.fields.assignee.displayName
+            if issue.fields.assignee
+            else "Unassigned"
+        )
+        
+        # Build dataset for publisher
+        ticket_data = {
+            "ticket": ticket_id,
+            "assignee": assignee_name,
+            "description": readable_description,
+            "pr_to_prod": prd_pr,
+            "pr_devint": "",  # Placeholders ready for expansion
+            "pr_qa": "",
+            "pr_uat": ""
+        }
+        
+        # 2. Trigger Publisher
+        result = publish_to_confluence(ticket_data)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 
 if __name__ == "__main__":

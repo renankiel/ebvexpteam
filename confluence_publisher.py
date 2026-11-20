@@ -5,6 +5,7 @@ from requests.auth import HTTPBasicAuth
 
 # Load environment variables
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+CONFLUENCE_SPACE_ID = os.getenv("CONFLUENCE_SPACE_ID", "1048580")
 CONFLUENCE_SPACE_KEY = os.getenv("CONFLUENCE_SPACE_KEY", "CRMB2B")
 JIRA_URL = os.getenv("JIRA_URL")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
@@ -74,7 +75,7 @@ def publish_to_confluence(ticket_data):
         confluence_endpoint = f"{JIRA_URL}/wiki/api/v2/pages"
         
         payload = {
-            "spaceId": CONFLUENCE_SPACE_KEY,  # Usually the Space Key or Space ID works
+            "spaceId": CONFLUENCE_SPACE_ID,  # 🟢 Fixed: Using the verified numeric space ID
             "status": "current",
             "title": f"SMT.{CONFLUENCE_SPACE_KEY}.{ticket_data.get('ticket')}",
             "body": {
@@ -88,7 +89,7 @@ def publish_to_confluence(ticket_data):
             "Content-Type": "application/json"
         }
         
-        # 5. Send post request using authenticated session
+        # 5. Send POST request using authenticated session
         response = requests.post(
             confluence_endpoint,
             json=payload,

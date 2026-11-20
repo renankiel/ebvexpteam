@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jira - Board & Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="jira-container">
+        <!-- Cabeçalho estilo Jira -->
+        <header class="jira-header">
+            <div class="project-info">
+                <span class="project-avatar">📊</span>
+                <div>
+                    <h1>BVISTA Board & Analytics</h1>
+                    <p class="subtitle">Amber Customer Experience Integrations</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navegação pelas 4 Abas -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab(event, 'dashboard')">Dashboard</button>
+            <button class="tab-button" onclick="openTab(event, 'candidates')">Candidates</button>
+            <button class="tab-button" onclick="openTab(event, 'ready-for-production')">Ready for Production</button>
+            <button class="tab-button" onclick="openTab(event, 'done')">Done</button>
+        </div>
+
+        <!-- ABA 1: Dashboard (Gráfico de Barras Horizontais) -->
+        <div id="dashboard" class="tab-content active">
+            <section class="metrics-section">
+                <div class="metric-card">
+                    <h3>📊 Tickets Ready for Production por Dia</h3>
+                    <div class="chart-container">
+                        <canvas id="productionChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ABA 2: Candidates -->
+        <div id="candidates" class="tab-content">
+            <div class="table-title candidates-title">Candidates</div>
+            <div class="table-responsive">
+                <table class="jira-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>Description</th>
+                            <th>ALM Page</th> <!-- 🟢 Now features the dynamic button -->
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>DEV Signoff?</th>
+                            <th>QA Signoff?</th>
+                            <th>UAT Signoff?</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in candidates %}
+                            <tr class="version-row">
+                                <td colspan="17">{{ group.version }}</td>
+                            </tr>
+                            {% for ticket in group.tickets %}
+                                <tr>
+                                    <td>{{ ticket.snow }}</td>
+                                    <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                    <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
+                                    <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
+                                    <td><span class="badge-status status-{{ ticket.status.lower().replace(' ', '-') }}">{{ ticket.status }}</span></td>
+                                    <td>
+                                        <div class="desc-cell" title="{{ ticket.description }}">
+                                            {{ ticket.description }}
+                                        </div>
+                                    </td>
+                                    <!-- 🟢 Dynamic Confluence Button Cell -->
+                                    <td>
+                                        <div id="alm-container-{{ ticket.ticket }}">
+                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                📝 Create Page
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                            {{ ticket.assignee }}
+                                        </div>
+                                    </td>
+                                    <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+                                    <td><span class="pr-text">{{ ticket.pr_to_prod }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
+                                    <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                    <td>{{ ticket.change_hour }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ABA 3: Ready for Production -->
+        <div id="ready-for-production" class="tab-content">
+            <div class="table-title ready-title">Ready for Production</div>
+            <div class="table-responsive">
+                <table class="jira-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>ALM Page</th>
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>DEV Signoff?</th>
+                            <th>QA Signoff?</th>
+                            <th>UAT Signoff?</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticket in ready_prod_tickets %}
+                            <tr>
+                                <td>{{ ticket.snow }}</td>
+                                <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
+                                <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
+                                <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
+                                <td>
+                                    <div id="alm-container-{{ ticket.ticket }}">
+                                        <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                            📝 Create Page
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="assignee-cell">
+                                        <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                        {{ ticket.assignee }}
+                                    </div>
+                                </td>
+                                <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
+                                <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+                                <td><span class="pr-text">{{ ticket.pr_to_prod }}</span></td>
+                                <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
+                                <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
+                                <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                <td>{{ ticket.change_hour }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ABA 4: Done -->
+        <div id="done" class="tab-content">
+            <div class="table-title done-title">Done</div>
+            <div class="table-responsive">
+                <table class="jira-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>ALM Page</th>
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>DEV Signoff?</th>
+                            <th>QA Signoff?</th>
+                            <th>UAT Signoff?</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticket in done_tickets %}
+                            <tr>
+                                <td><a href="#" class="snow-link">{{ ticket.snow }}</a></td>
+                                <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
+                                <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
+                                <td><span class="badge-status status-done">{{ ticket.status }}</span></td>
+                                <td>
+                                    <div id="alm-container-{{ ticket.ticket }}">
+                                        <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                            📝 Create Page
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="assignee-cell">
+                                        <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                        {{ ticket.assignee }}
+                                    </div>
+                                </td>
+                                <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
+                                <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+                                <td>
+                                    {% if ticket.pr_to_prod == "N/A" or ticket.pr_to_prod == "" %}
+                                        {{ ticket.pr_to_prod }}
+                                    {% else %}
+                                        <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge-yn {{ ticket.pr_validated.lower().replace('/', '-') }}">{{ ticket.pr_validated }}</span></td>
+                                <td><span class="badge-yn {{ ticket.dev_signoff.lower().replace('/', '-') }}">{{ ticket.dev_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.qa_signoff.lower().replace('/', '-') }}">{{ ticket.qa_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.uat_signoff.lower().replace('/', '-') }}">{{ ticket.uat_signoff }}</span></td>
+                                <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                <td>{{ ticket.change_hour }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script das Abas e do Gráfico -->
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        // 🟢 ASYNC CONFLUENCE CREATION FUNCTION
+        function createConfluencePage(ticketId) {
+            const container = document.getElementById(`alm-container-${ticketId}`);
+            if (!container) return;
+            
+            // 1. Set loading state
+            container.innerHTML = `<span class="loading-state">⏳ Creating...</span>`;
+            
+            // 2. Fire fetch POST request to Flask
+            fetch(`/publish-page/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 3. Render clickable view link on success
+                    container.innerHTML = `
+                        <a href="${data.url}" target="_blank" class="confluence-link-success">
+                            👁️ View Page
+                        </a>`;
+                } else {
+                    // 4. Fallback on failure
+                    alert(`Error creating page: ${data.message}`);
+                    container.innerHTML = `
+                        <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
+                            ⚠️ Retry Create
+                        </button>`;
+                }
+            })
+            .catch(error => {
+                alert(`Network error: ${error}`);
+                container.innerHTML = `
+                    <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
+                        ⚠️ Retry Create
+                    </button>`;
+            });
+        }
+
+        // Renderização do Gráfico de Barras Horizontais do Chart.js
+        const ctx = document.getElementById('productionChart').getContext('2d');
+        const productionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_data.labels | tojson }},
+                datasets: [{
+                    label: 'Quantidade de Tickets',
+                    data: {{ chart_data.counts | tojson }},
+                    borderColor: '#4cd084',
+                    backgroundColor: 'rgba(76, 208, 132, 0.25)',
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                    barThickness: 24
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: '#2d353f'
+                        },
+                        ticks: {
+                            color: '#8c9bab',
+                            stepSize: 1
+                        },
+                        beginAtZero: true
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#8c9bab'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
