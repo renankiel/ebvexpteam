@@ -1,16 +1,18 @@
 import os
 import re
+import requests
+from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify
 from jira import JIRA
-from confluence_publisher import publish_to_confluence
 
-# Absolute path finder to ensure .env is correctly loaded
+# =====================================================================
+# 🟢 1. LOAD ENVIRONMENT VARIABLES FIRST (Before local module imports)
+# =====================================================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 env_path = os.path.join(BASE_DIR, ".env")
 env_path_txt = os.path.join(BASE_DIR, ".env.txt")
 
-# Double guard loading mechanism
 if os.path.exists(env_path):
     print(f"✅ Found .env file at: {env_path}")
     load_dotenv(env_path)
@@ -19,6 +21,9 @@ elif os.path.exists(env_path_txt):
     load_dotenv(env_path_txt)
 else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
+
+# Import publisher after loading .env so credentials are available
+from confluence_publisher import publish_to_confluence
 
 app = Flask(__name__)
 
@@ -82,7 +87,7 @@ CHART_DATA = {
 
 
 # =====================================================================
-# 🧩 ADF PARSING & READING FUNCTIONS (NO REGEX!)
+# 🧩 ADF PARSING, READING & UPDATING FUNCTIONS (NO REGEX!)
 # =====================================================================
 def extract_plain_text_adf(adf_node):
     """
@@ -159,6 +164,102 @@ def extract_prd_pr_adf(adf_description):
         print(f"⚠️ Error parsing ADF table: {e}")
 
     return ""
+
+
+def update_inline_card_in_node(node, new_url):
+    """
+    Recursively searches inside a node (such as the ALM PAGE panel)
+    for an 'inlineCard' element and updates its 'url' attribute.
+    Returns True if an inlineCard was found and updated.
+    """
+    if isinstance(node, list):
+        for item in node:
+            if update_inline_card_in_node(item, new_url):
+                return True
+    elif isinstance(node, dict):
+        if node.get("type") == "inlineCard":
+            if "attrs" not in node or not isinstance(node["attrs"], dict):
+                node["attrs"] = {}
+            node["attrs"]["url"] = new_url
+            return True
+
+        for child in node.get("content", []):
+            if update_inline_card_in_node(child, new_url):
+                return True
+
+    return False
+
+
+def update_alm_page_panel_adf(adf_description, new_url):
+    """
+    Finds the Info Panel containing 'ALM PAGE' inside the Jira description ADF
+    and updates the inlineCard URL with the newly generated Confluence link.
+    """
+    if not isinstance(adf_description, dict):
+        return False
+
+    for block in adf_description.get("content", []):
+        if isinstance(block, dict) and block.get("type") == "panel":
+            panel_text = extract_plain_text_adf(block).upper()
+
+            if "ALM PAGE" in panel_text:
+                # 1. Try to update an existing inlineCard inside this panel
+                if update_inline_card_in_node(block, new_url):
+                    return True
+
+                # 2. Fallback: if the panel exists but has no inlineCard yet,
+                # insert or replace the second paragraph with the inlineCard
+                panel_content = block.setdefault("content", [])
+                inline_card_paragraph = {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "inlineCard",
+                            "attrs": {
+                                "url": new_url
+                            }
+                        }
+                    ]
+                }
+
+                if len(panel_content) >= 2:
+                    panel_content[1] = inline_card_paragraph
+                else:
+                    panel_content.append(inline_card_paragraph)
+
+                return True
+
+    return False
+
+
+def update_jira_description_adf(ticket_id, updated_adf):
+    """
+    Sends a PUT request to Jira REST API v3 to overwrite the issue's
+    description field with the updated ADF JSON structure.
+    """
+    endpoint = f"{JIRA_URL}/rest/api/3/issue/{ticket_id}"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "fields": {
+            "description": updated_adf
+        }
+    }
+
+    response = requests.put(
+        endpoint,
+        json=payload,
+        headers=headers,
+        auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    )
+
+    # Jira REST API v3 returns 204 No Content on a successful issue update
+    if response.status_code in [200, 204]:
+        return True, "Jira description updated successfully."
+    else:
+        return False, f"Failed to update Jira (Status {response.status_code}): {response.text}"
 
 
 # =====================================================================
@@ -296,8 +397,10 @@ def home():
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
 def publish_page(ticket_id):
     """
-    Endpoint triggered via AJAX to fetch fresh ticket details from Jira
-    and publish them automatically to Confluence using the template JSON.
+    1. Fetches fresh ticket details (including raw ADF description) from Jira.
+    2. Publishes the ALM page to Confluence using the JSON template.
+    3. Updates the 'ALM PAGE' Info Panel inside the Jira ticket's description
+       with the generated Confluence URL.
     """
     try:
         jira = JIRA(
@@ -305,40 +408,61 @@ def publish_page(ticket_id):
             basic_auth=(JIRA_EMAIL, JIRA_TOKEN),
             options={"rest_api_version": "3"}
         )
-        
+
         # 1. Fetch live issue details
         issue = jira.issue(ticket_id)
         description_adf = issue.raw.get("fields", {}).get("description")
-        
+
         readable_description = (
             extract_plain_text_adf(description_adf)
             if description_adf
             else "No description"
         )
-        
+
         prd_pr = extract_prd_pr_adf(description_adf)
-        
+
         assignee_name = (
             issue.fields.assignee.displayName
             if issue.fields.assignee
             else "Unassigned"
         )
-        
-        # Build dataset for publisher
+
         ticket_data = {
             "ticket": ticket_id,
             "assignee": assignee_name,
             "description": readable_description,
             "pr_to_prod": prd_pr,
-            "pr_devint": "",  # Placeholders ready for expansion
+            "pr_devint": "",
             "pr_qa": "",
             "pr_uat": ""
         }
-        
-        # 2. Trigger Publisher
-        result = publish_to_confluence(ticket_data)
-        return jsonify(result)
-        
+
+        # 2. Publish page to Confluence
+        confluence_result = publish_to_confluence(ticket_data)
+        if not confluence_result.get("success"):
+            return jsonify(confluence_result)
+
+        generated_url = confluence_result.get("url")
+
+        # 3. Update the 'ALM PAGE' Info Panel in the Jira ticket's ADF description
+        if description_adf:
+            panel_updated = update_alm_page_panel_adf(description_adf, generated_url)
+
+            if panel_updated:
+                jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
+                if not jira_ok:
+                    return jsonify({
+                        "success": False,
+                        "message": f"Page created ({generated_url}), but Jira update failed: {jira_msg}"
+                    })
+            else:
+                print(f"⚠️ Warning: 'ALM PAGE' panel not found in {ticket_id} description.")
+
+        return jsonify({
+            "success": True,
+            "url": generated_url
+        })
+
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
