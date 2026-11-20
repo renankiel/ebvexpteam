@@ -137,7 +137,6 @@ def extract_prd_pr_adf(adf_description):
                 else:
                     data_rows.append(cells)
 
-            # Only extract from tables that actually have a PRD column
             if prd_column_index is not None and data_rows:
                 last_row_cells = data_rows[-1]
                 if prd_column_index < len(last_row_cells):
@@ -154,7 +153,7 @@ def extract_prd_pr_adf(adf_description):
 
 def find_url_and_text_in_node(node):
     """
-    Recursively searches inside an ADF node (such as a tableCell) for a link:
+    Recursively searches inside an ADF node for a link:
     1. 'inlineCard' -> returns (attrs.url, last_url_segment)
     2. 'text' with 'link' mark -> returns (mark.attrs.href, node.text)
     3. Raw 'text' starting with http:// or https:// -> returns (raw_text, raw_text)
@@ -193,7 +192,6 @@ def find_panel_table(adf_description, panel_keyword):
     """
     Finds the Info Panel matching 'panel_keyword' (e.g., 'ALM PAGE' or 'SNOW')
     and returns the sibling 'table' block that immediately follows it in the ADF document.
-    Returns None if either the Info Panel or its following Table does not exist.
     """
     if not isinstance(adf_description, dict):
         return None
@@ -209,7 +207,6 @@ def find_panel_table(adf_description, panel_keyword):
                 continue
 
             if target_keyword in panel_text:
-                # Look at the next sibling block(s) for the associated table
                 for next_idx in range(idx + 1, len(blocks)):
                     next_block = blocks[next_idx]
                     if not isinstance(next_block, dict):
@@ -219,7 +216,6 @@ def find_panel_table(adf_description, panel_keyword):
                     if next_type == "table":
                         return next_block
 
-                    # If we hit another panel or a non-empty block before a table, stop
                     if next_type == "panel" or extract_plain_text_adf(next_block).strip():
                         break
 
@@ -229,10 +225,7 @@ def find_panel_table(adf_description, panel_keyword):
 
 
 def get_link_cell_from_table(table_node):
-    """
-    Locates the 'LINK' column inside a table node and returns the tableCell
-    dictionary from the first data row. Returns None if no data row exists.
-    """
+    """Locates the 'LINK' column inside a table node and returns its first data cell."""
     if not isinstance(table_node, dict) or table_node.get("type") != "table":
         return None
 
@@ -270,10 +263,7 @@ def get_link_cell_from_table(table_node):
 def inspect_alm_page_status(description_adf):
     """
     Checks if both the 'ALM PAGE' Info Panel and its sibling table exist.
-    Returns:
-        ('none', '') -> Panel or table is missing
-        ('ready', '') -> Panel and table exist, but LINK cell has no URL
-        ('exists', url) -> Panel and table exist, and LINK cell has a URL
+    Returns: ('none', '') | ('ready', '') | ('exists', url)
     """
     table_node = find_panel_table(description_adf, "ALM PAGE")
     if not table_node:
@@ -292,10 +282,7 @@ def inspect_alm_page_status(description_adf):
 def inspect_snow_status(description_adf):
     """
     Checks if both the 'SNOW' Info Panel and its sibling table exist.
-    Returns:
-        ('none', '', '') -> Panel or table is missing
-        ('ready', '', '') -> Panel and table exist, but LINK cell has no URL
-        ('exists', url, display_text) -> Panel and table exist, and LINK cell has a URL
+    Returns: ('none', '', '') | ('ready', '', '') | ('exists', url, display_text)
     """
     table_node = find_panel_table(description_adf, "SNOW")
     if not table_node:
@@ -313,12 +300,7 @@ def inspect_snow_status(description_adf):
 
 
 def update_panel_table_link_adf(adf_description, panel_keyword, new_url, display_text=None):
-    """
-    Updates the 'LINK' cell of the table following the specified Info Panel ('ALM PAGE' or 'SNOW').
-    - If display_text is provided (used for SNOW), writes a 'text' node with a 'link' mark
-      so the Change Request Number (e.g., CHG0030001) is displayed as the link text.
-    - If display_text is None (used for ALM PAGE), writes an 'inlineCard' with the Confluence URL.
-    """
+    """Updates the 'LINK' cell of the table following the Info Panel."""
     table_node = find_panel_table(adf_description, panel_keyword)
     if not table_node:
         return False
@@ -433,6 +415,20 @@ def fetch_jira_data():
             labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
+            # 🟢 MANUAL? Label Evaluation
+            has_pull_request = "pull-request" in labels_lower
+            has_manually = "manually" in labels_lower
+
+            if has_pull_request:
+                # If pull-request exists (even if manually also exists) -> 'No'
+                manual_val = "No"
+            elif has_manually:
+                # If only manually exists -> 'Yes'
+                manual_val = "Yes"
+            else:
+                # If neither exists -> Dash
+                manual_val = "—"
+
             description_adf = issue.raw.get("fields", {}).get("description")
 
             readable_description = (
@@ -442,6 +438,16 @@ def fetch_jira_data():
             )
 
             prd_pr = extract_prd_pr_adf(description_adf)
+
+            # 🟢 Apply 'N/A' overrides when MANUAL? is 'Yes'
+            if manual_val == "Yes":
+                logs_val = "N/A"
+                pr_to_prod_val = "N/A"
+                pr_validated_val = "N/A"
+            else:
+                logs_val = "No"
+                pr_to_prod_val = prd_pr
+                pr_validated_val = "Yes" if prd_pr else "No"
 
             # Inspect ALM PAGE and SNOW panels + sibling tables
             alm_state, alm_url = inspect_alm_page_status(description_adf)
@@ -460,10 +466,10 @@ def fetch_jira_data():
                 "alm_page_state": alm_state,
                 "alm_page_url": alm_url,
                 "assignee": assignee_name,
-                "manual": "No",
-                "logs": "No",
-                "pr_to_prod": prd_pr,
-                "pr_validated": "Yes" if prd_pr else "No",
+                "manual": manual_val,
+                "logs": logs_val,
+                "pr_to_prod": pr_to_prod_val,
+                "pr_validated": pr_validated_val,
                 "dev_signoff": "Yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "No",
                 "qa_signoff": "Yes" if current_status == "DONE" else "No",
                 "uat_signoff": "Yes" if current_status == "DONE" else "No",
@@ -528,10 +534,6 @@ def home():
 
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
 def publish_page(ticket_id):
-    """
-    Validates that the ALM PAGE Info Panel and its sibling table exist,
-    creates the Confluence page if the LINK cell is empty, and updates Jira.
-    """
     try:
         jira = JIRA(
             server=JIRA_URL,
@@ -585,7 +587,6 @@ def publish_page(ticket_id):
 
         generated_url = confluence_result.get("url")
 
-        # Write inlineCard into the LINK cell of the ALM PAGE table
         update_panel_table_link_adf(description_adf, "ALM PAGE", generated_url, display_text=None)
         jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
 
@@ -607,11 +608,6 @@ def publish_page(ticket_id):
 
 @app.route("/create-snow/<ticket_id>", methods=["POST"])
 def create_snow(ticket_id):
-    """
-    Validates that the SNOW Info Panel and its sibling table exist,
-    creates a Change Request (CHG) in ServiceNow if the LINK cell is empty,
-    and writes the CHG number as a clickable link in the Jira table.
-    """
     try:
         jira = JIRA(
             server=JIRA_URL,
@@ -666,7 +662,6 @@ def create_snow(ticket_id):
         generated_snow_url = snow_result.get("url")
         chg_number = snow_result.get("number", "View SNOW")
 
-        # Write clickable CHG number into the LINK cell of the SNOW table
         update_panel_table_link_adf(description_adf, "SNOW", generated_snow_url, display_text=chg_number)
         jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
 

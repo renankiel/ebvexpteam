@@ -242,7 +242,7 @@ body {
     border-left: 3px solid #0747A6;
 }
 
-/* --- LINKS (Matches a, .ghx-issuetable td a) --- */
+/* --- LINKS --- */
 .ticket-link,
 .snow-link {
     color: #2d7fbe;
@@ -278,7 +278,7 @@ body {
     flex-shrink: 0;
 }
 
-/* --- ISSUE TYPE BADGES (Matches .ghx-type colors from jira-full-dark.css) --- */
+/* --- ISSUE TYPE BADGES --- */
 .badge-type {
     display: inline-block;
     padding: 2px 8px;
@@ -323,7 +323,7 @@ body {
     color: #ffffff;
 }
 
-/* --- STATUS LOZENGES (Matches .aui-lozenge from jira-full-dark.css) --- */
+/* --- STATUS LOZENGES --- */
 .badge-status {
     display: inline-block;
     padding: 2px 8px;
@@ -358,13 +358,14 @@ body {
     color: #FAFBFC;
 }
 
-/* --- YES / NO BADGES --- */
+/* --- YES / NO / N/A BADGES --- */
 .badge-yn {
     display: inline-block;
     padding: 2px 7px;
     font-size: 11px;
     font-weight: 700;
     border-radius: 3px;
+    text-align: center;
 }
 
 .badge-yn.yes {
@@ -379,6 +380,14 @@ body {
     border: 1px solid #862a2a;
 }
 
+/* 🟢 Grey Badge for 'N/A' (Not applicable) */
+.badge-yn.na,
+.badge-yn.n-a {
+    background-color: #2e2e2e;
+    color: #8c8c8c;
+    border: 1px solid #484848;
+}
+
 .pr-text {
     background-color: #083376;
     color: #FAFBFC;
@@ -388,12 +397,9 @@ body {
     font-size: 12px;
 }
 
-/* =====================================================================
-   🔵 JIRA PRIMARY BLUE BUTTON ("Create page")
-   Matches .aui-button.aui-button-primary.aui-style in jira-full-dark.css
-   ===================================================================== */
+/* --- JIRA PRIMARY BLUE BUTTON ("Create page", "Create SNOW") --- */
 .btn-confluence {
-    background-color: #0747A6; /* Jira Primary Blue from jira-full-dark.css */
+    background-color: #0747A6;
     color: #ffffff !important;
     border: none;
     border-radius: 3px;
@@ -412,16 +418,15 @@ body {
 }
 
 .btn-confluence:hover {
-    background-color: #285aa4; /* Hover Blue from jira-full-dark.css */
+    background-color: #285aa4;
     color: #ffffff !important;
 }
 
 .btn-confluence:active {
-    background-color: #083376; /* Deep Pressed Blue from jira-full-dark.css */
+    background-color: #083376;
     color: #deebff !important;
 }
 
-/* Retry / Error State */
 .btn-confluence.btn-error {
     background-color: #862a2a;
     color: #ffffff !important;
@@ -431,16 +436,14 @@ body {
     background-color: #c31d1d;
 }
 
-/* Loading State */
 .loading-state {
     color: #deebff;
     font-size: 12px;
     font-weight: 500;
 }
 
-/* View Page Button (When Confluence Page already exists) */
 .confluence-link-success {
-    background-color: #404040; /* Secondary AUI Button from jira-full-dark.css */
+    background-color: #404040;
     color: #deebff !important;
     border: 1px solid #0747A6;
     border-radius: 3px;
@@ -462,7 +465,6 @@ body {
     text-decoration: none;
 }
 
-/* Dash when ticket has no ALM PAGE Info Panel */
 .no-panel-text {
     color: #606060;
     font-size: 14px;

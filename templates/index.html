@@ -68,7 +68,7 @@
                     <tbody>
                         {% for group in candidates %}
                             <tr class="version-row">
-                                <td colspan="17">{{ group.version }}</td>
+                                <td colspan="16">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
@@ -84,7 +84,7 @@
                                                     Create SNOW
                                                 </button>
                                             {% else %}
-                                                <span class="no-panel-text" title="No SNOW Info Panel in Jira description">—</span>
+                                                <span class="no-panel-text" title="No SNOW Info Panel or Table in Jira description">—</span>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -106,7 +106,7 @@
                                                     Create page
                                                 </button>
                                             {% else %}
-                                                <span class="no-panel-text" title="No ALM PAGE Info Panel in Jira description">—</span>
+                                                <span class="no-panel-text" title="No ALM PAGE Info Panel or Table in Jira description">—</span>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -117,14 +117,45 @@
                                             {{ ticket.assignee }}
                                         </div>
                                     </td>
-                                    <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
-                                    <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+
+                                    <!-- MANUAL? Column -->
                                     <td>
-                                        {% if ticket.pr_to_prod %}
+                                        {% if ticket.manual == 'Yes' %}
+                                            <span class="badge-yn yes">Yes</span>
+                                        {% elif ticket.manual == 'No' %}
+                                            <span class="badge-yn no">No</span>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- LOGS? Column -->
+                                    <td>
+                                        {% if ticket.logs == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- PR TO PROD Column -->
+                                    <td>
+                                        {% if ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_to_prod %}
                                             <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                         {% endif %}
                                     </td>
-                                    <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
+
+                                    <!-- PR VALIDATED? Column -->
+                                    <td>
+                                        {% if ticket.pr_validated == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span>
+                                        {% endif %}
+                                    </td>
+
                                     <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
                                     <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
                                     <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
@@ -206,14 +237,45 @@
                                         {{ ticket.assignee }}
                                     </div>
                                 </td>
-                                <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
-                                <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+
+                                <!-- MANUAL? Column -->
                                 <td>
-                                    {% if ticket.pr_to_prod %}
+                                    {% if ticket.manual == 'Yes' %}
+                                        <span class="badge-yn yes">Yes</span>
+                                    {% elif ticket.manual == 'No' %}
+                                        <span class="badge-yn no">No</span>
+                                    {% else %}
+                                        <span class="no-panel-text">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- LOGS? Column -->
+                                <td>
+                                    {% if ticket.logs == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- PR TO PROD Column -->
+                                <td>
+                                    {% if ticket.pr_to_prod == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% elif ticket.pr_to_prod %}
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
-                                <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
+
+                                <!-- PR VALIDATED? Column -->
+                                <td>
+                                    {% if ticket.pr_validated == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span>
+                                    {% endif %}
+                                </td>
+
                                 <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
                                 <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
                                 <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
@@ -294,16 +356,45 @@
                                         {{ ticket.assignee }}
                                     </div>
                                 </td>
-                                <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
-                                <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
+
+                                <!-- MANUAL? Column -->
                                 <td>
-                                    {% if ticket.pr_to_prod == "N/A" or ticket.pr_to_prod == "" %}
-                                        {{ ticket.pr_to_prod }}
+                                    {% if ticket.manual == 'Yes' %}
+                                        <span class="badge-yn yes">Yes</span>
+                                    {% elif ticket.manual == 'No' %}
+                                        <span class="badge-yn no">No</span>
                                     {% else %}
+                                        <span class="no-panel-text">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- LOGS? Column -->
+                                <td>
+                                    {% if ticket.logs == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- PR TO PROD Column -->
+                                <td>
+                                    {% if ticket.pr_to_prod == "N/A" %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% elif ticket.pr_to_prod %}
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
-                                <td><span class="badge-yn {{ ticket.pr_validated.lower().replace('/', '-') }}">{{ ticket.pr_validated }}</span></td>
+
+                                <!-- PR VALIDATED? Column -->
+                                <td>
+                                    {% if ticket.pr_validated == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.pr_validated.lower().replace('/', '-') }}">{{ ticket.pr_validated }}</span>
+                                    {% endif %}
+                                </td>
+
                                 <td><span class="badge-yn {{ ticket.dev_signoff.lower().replace('/', '-') }}">{{ ticket.dev_signoff }}</span></td>
                                 <td><span class="badge-yn {{ ticket.qa_signoff.lower().replace('/', '-') }}">{{ ticket.qa_signoff }}</span></td>
                                 <td><span class="badge-yn {{ ticket.uat_signoff.lower().replace('/', '-') }}">{{ ticket.uat_signoff }}</span></td>
