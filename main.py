@@ -23,6 +23,7 @@ else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
 
 from confluence_publisher import publish_to_confluence
+from servicenow_publisher import create_servicenow_change
 
 app = Flask(__name__)
 
@@ -54,7 +55,9 @@ TYPE_TRANSLATION = {
 
 READY_FOR_PRODUCTION_TICKETS = [
     {
-        "snow": "CHG1326437",
+        "snow_state": "exists",
+        "snow_url": "https://dev489662.service-now.com/nav_to.do?uri=change_request.do?sysparm_query=number=CHG1326437",
+        "snow_number": "CHG1326437",
         "ticket": "CRMB2B-31284",
         "type": "Story",
         "cloud": "Sales",
@@ -81,7 +84,7 @@ CHART_DATA = {
 
 
 # =====================================================================
-# 🧩 ADF PARSING & STATE EXTRACTION FUNCTIONS
+# 🧩 ADF PARSING, TABLE INSPECTION & UPDATING FUNCTIONS
 # =====================================================================
 def extract_plain_text_adf(adf_node):
     """Recursively traverses any ADF JSON block and merges all text elements."""
@@ -102,7 +105,7 @@ def extract_plain_text_adf(adf_node):
 
 
 def extract_prd_pr_adf(adf_description):
-    """Extracts PRD PR value from the last row of the description table."""
+    """Extracts PRD PR value from the last row of the description table containing a 'PRD' header."""
     if not isinstance(adf_description, dict):
         return ""
 
@@ -134,19 +137,14 @@ def extract_prd_pr_adf(adf_description):
                 else:
                     data_rows.append(cells)
 
-            if data_rows:
+            # Only extract from tables that actually have a PRD column
+            if prd_column_index is not None and data_rows:
                 last_row_cells = data_rows[-1]
-
-                if prd_column_index is not None and prd_column_index < len(last_row_cells):
+                if prd_column_index < len(last_row_cells):
                     target_cell = last_row_cells[prd_column_index]
-                elif len(last_row_cells) >= 4:
-                    target_cell = last_row_cells[3]
-                else:
-                    target_cell = last_row_cells[-1]
-
-                prd_value = extract_plain_text_adf(target_cell).strip()
-                if prd_value:
-                    return prd_value
+                    prd_value = extract_plain_text_adf(target_cell).strip()
+                    if prd_value:
+                        return prd_value
 
     except Exception as e:
         print(f"⚠️ Error parsing ADF table: {e}")
@@ -154,112 +152,221 @@ def extract_prd_pr_adf(adf_description):
     return ""
 
 
-def find_inline_card_url_in_node(node):
-    """Finds the URL of the first 'inlineCard' inside a given node."""
+def find_url_and_text_in_node(node):
+    """
+    Recursively searches inside an ADF node (such as a tableCell) for a link:
+    1. 'inlineCard' -> returns (attrs.url, last_url_segment)
+    2. 'text' with 'link' mark -> returns (mark.attrs.href, node.text)
+    3. Raw 'text' starting with http:// or https:// -> returns (raw_text, raw_text)
+    """
     if isinstance(node, list):
         for item in node:
-            url = find_inline_card_url_in_node(item)
+            url, text = find_url_and_text_in_node(item)
             if url:
-                return url
+                return url, text
     elif isinstance(node, dict):
         if node.get("type") == "inlineCard":
-            return node.get("attrs", {}).get("url", "")
+            url = node.get("attrs", {}).get("url", "").strip()
+            text = url.rstrip("/").split("/")[-1] if url else ""
+            return url, text
+
+        if node.get("type") == "text":
+            for mark in node.get("marks", []):
+                if mark.get("type") == "link":
+                    url = mark.get("attrs", {}).get("href", "").strip()
+                    text = node.get("text", "").strip()
+                    if url:
+                        return url, text
+            raw_text = node.get("text", "").strip()
+            if raw_text.startswith("http://") or raw_text.startswith("https://"):
+                return raw_text, raw_text
 
         for child in node.get("content", []):
-            url = find_inline_card_url_in_node(child)
+            url, text = find_url_and_text_in_node(child)
             if url:
-                return url
+                return url, text
 
-    return ""
+    return "", ""
+
+
+def find_panel_table(adf_description, panel_keyword):
+    """
+    Finds the Info Panel matching 'panel_keyword' (e.g., 'ALM PAGE' or 'SNOW')
+    and returns the sibling 'table' block that immediately follows it in the ADF document.
+    Returns None if either the Info Panel or its following Table does not exist.
+    """
+    if not isinstance(adf_description, dict):
+        return None
+
+    blocks = adf_description.get("content", [])
+    target_keyword = panel_keyword.upper()
+
+    for idx, block in enumerate(blocks):
+        if isinstance(block, dict) and block.get("type") == "panel":
+            panel_text = extract_plain_text_adf(block).upper()
+
+            if target_keyword == "SNOW" and "ALM PAGE" in panel_text:
+                continue
+
+            if target_keyword in panel_text:
+                # Look at the next sibling block(s) for the associated table
+                for next_idx in range(idx + 1, len(blocks)):
+                    next_block = blocks[next_idx]
+                    if not isinstance(next_block, dict):
+                        continue
+
+                    next_type = next_block.get("type")
+                    if next_type == "table":
+                        return next_block
+
+                    # If we hit another panel or a non-empty block before a table, stop
+                    if next_type == "panel" or extract_plain_text_adf(next_block).strip():
+                        break
+
+                return None
+
+    return None
+
+
+def get_link_cell_from_table(table_node):
+    """
+    Locates the 'LINK' column inside a table node and returns the tableCell
+    dictionary from the first data row. Returns None if no data row exists.
+    """
+    if not isinstance(table_node, dict) or table_node.get("type") != "table":
+        return None
+
+    rows = table_node.get("content", [])
+    link_col_index = 0
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            for idx, cell in enumerate(cells):
+                header_text = extract_plain_text_adf(cell).upper()
+                if "LINK" in header_text:
+                    link_col_index = idx
+                    break
+        else:
+            data_rows.append(cells)
+
+    if not data_rows:
+        return None
+
+    first_data_row = data_rows[0]
+    if link_col_index < len(first_data_row):
+        return first_data_row[link_col_index]
+    return first_data_row[0]
 
 
 def inspect_alm_page_status(description_adf):
     """
-    Inspects the Jira description ADF for the ALM PAGE panel.
+    Checks if both the 'ALM PAGE' Info Panel and its sibling table exist.
     Returns:
-        (state, url)
-        - state: 'none' (panel does not exist)
-        - state: 'ready' (panel exists and URL ends with CRMB2B-0 -> ready to create)
-        - state: 'exists' (panel exists and URL points to an actual page -> already created)
+        ('none', '') -> Panel or table is missing
+        ('ready', '') -> Panel and table exist, but LINK cell has no URL
+        ('exists', url) -> Panel and table exist, and LINK cell has a URL
     """
-    if not isinstance(description_adf, dict):
+    table_node = find_panel_table(description_adf, "ALM PAGE")
+    if not table_node:
         return "none", ""
 
-    for block in description_adf.get("content", []):
-        if isinstance(block, dict) and block.get("type") == "panel":
-            panel_text = extract_plain_text_adf(block).upper()
+    link_cell = get_link_cell_from_table(table_node)
+    if not link_cell:
+        return "none", ""
 
-            if "ALM PAGE" in panel_text:
-                card_url = find_inline_card_url_in_node(block).strip()
-
-                # If URL ends with CRMB2B-0 (or placeholder), it is ready for creation
-                if card_url.endswith("CRMB2B-0") or not card_url:
-                    return "ready", card_url
-                else:
-                    # It already points to a real page!
-                    return "exists", card_url
-
-    return "none", ""
+    url, _ = find_url_and_text_in_node(link_cell)
+    if url:
+        return "exists", url
+    return "ready", ""
 
 
-def update_inline_card_in_node(node, new_url):
-    """Recursively updates the URL of an inlineCard."""
-    if isinstance(node, list):
-        for item in node:
-            if update_inline_card_in_node(item, new_url):
-                return True
-    elif isinstance(node, dict):
-        if node.get("type") == "inlineCard":
-            if "attrs" not in node or not isinstance(node["attrs"], dict):
-                node["attrs"] = {}
-            node["attrs"]["url"] = new_url
-            return True
+def inspect_snow_status(description_adf):
+    """
+    Checks if both the 'SNOW' Info Panel and its sibling table exist.
+    Returns:
+        ('none', '', '') -> Panel or table is missing
+        ('ready', '', '') -> Panel and table exist, but LINK cell has no URL
+        ('exists', url, display_text) -> Panel and table exist, and LINK cell has a URL
+    """
+    table_node = find_panel_table(description_adf, "SNOW")
+    if not table_node:
+        return "none", "", ""
 
-        for child in node.get("content", []):
-            if update_inline_card_in_node(child, new_url):
-                return True
+    link_cell = get_link_cell_from_table(table_node)
+    if not link_cell:
+        return "none", "", ""
 
-    return False
+    url, text = find_url_and_text_in_node(link_cell)
+    if url:
+        display_number = text if text else "View SNOW"
+        return "exists", url, display_number
+    return "ready", "", ""
 
 
-def update_alm_page_panel_adf(adf_description, new_url):
-    """Updates the ALM PAGE Info Panel inlineCard with the new Confluence URL."""
-    if not isinstance(adf_description, dict):
+def update_panel_table_link_adf(adf_description, panel_keyword, new_url, display_text=None):
+    """
+    Updates the 'LINK' cell of the table following the specified Info Panel ('ALM PAGE' or 'SNOW').
+    - If display_text is provided (used for SNOW), writes a 'text' node with a 'link' mark
+      so the Change Request Number (e.g., CHG0030001) is displayed as the link text.
+    - If display_text is None (used for ALM PAGE), writes an 'inlineCard' with the Confluence URL.
+    """
+    table_node = find_panel_table(adf_description, panel_keyword)
+    if not table_node:
         return False
 
-    for block in adf_description.get("content", []):
-        if isinstance(block, dict) and block.get("type") == "panel":
-            panel_text = extract_plain_text_adf(block).upper()
+    link_cell = get_link_cell_from_table(table_node)
+    if not link_cell:
+        return False
 
-            if "ALM PAGE" in panel_text:
-                if update_inline_card_in_node(block, new_url):
-                    return True
-
-                panel_content = block.setdefault("content", [])
-                inline_card_paragraph = {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "inlineCard",
-                            "attrs": {
-                                "url": new_url
+    if display_text:
+        link_cell["content"] = [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": str(display_text),
+                        "marks": [
+                            {
+                                "type": "link",
+                                "attrs": {
+                                    "href": new_url
+                                }
                             }
+                        ]
+                    }
+                ]
+            }
+        ]
+    else:
+        link_cell["content"] = [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "inlineCard",
+                        "attrs": {
+                            "url": new_url
                         }
-                    ]
-                }
+                    }
+                ]
+            }
+        ]
 
-                if len(panel_content) >= 2:
-                    panel_content[1] = inline_card_paragraph
-                else:
-                    panel_content.append(inline_card_paragraph)
-
-                return True
-
-    return False
+    return True
 
 
 def update_jira_description_adf(ticket_id, updated_adf):
-    """Overwrites Jira issue description with the updated ADF JSON."""
+    """Overwrites Jira issue description with updated ADF JSON."""
     endpoint = f"{JIRA_URL}/rest/api/3/issue/{ticket_id}"
     headers = {
         "Accept": "application/json",
@@ -336,19 +443,22 @@ def fetch_jira_data():
 
             prd_pr = extract_prd_pr_adf(description_adf)
 
-            # Inspect ALM Page panel status ('none', 'ready', 'exists')
+            # Inspect ALM PAGE and SNOW panels + sibling tables
             alm_state, alm_url = inspect_alm_page_status(description_adf)
+            snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
 
             ticket_obj = {
-                "snow": "",
+                "snow_state": snow_state,
+                "snow_url": snow_url,
+                "snow_number": snow_num or "View SNOW",
                 "ticket": issue.key,
                 "type": formatted_type,
                 "cloud": cloud_val,
                 "status": current_status,
                 "description": readable_description,
                 "description_adf": description_adf,
-                "alm_page_state": alm_state,  # 🟢 'none' | 'ready' | 'exists'
-                "alm_page_url": alm_url,      # 🟢 Existing Confluence link if any
+                "alm_page_state": alm_state,
+                "alm_page_url": alm_url,
                 "assignee": assignee_name,
                 "manual": "No",
                 "logs": "No",
@@ -419,11 +529,8 @@ def home():
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
 def publish_page(ticket_id):
     """
-    1. Fetches fresh issue details from Jira.
-    2. Verifies ALM PAGE Info Panel:
-       - If panel does NOT exist: rejects action.
-       - If URL does NOT end with 'CRMB2B-0': page already exists! Returns existing URL.
-       - If URL ends with 'CRMB2B-0': publishes to Confluence and updates Jira.
+    Validates that the ALM PAGE Info Panel and its sibling table exist,
+    creates the Confluence page if the LINK cell is empty, and updates Jira.
     """
     try:
         jira = JIRA(
@@ -437,14 +544,12 @@ def publish_page(ticket_id):
 
         alm_state, existing_url = inspect_alm_page_status(description_adf)
 
-        # Condition 3: No ALM PAGE panel at all
         if alm_state == "none":
             return jsonify({
                 "success": False,
-                "message": f"Ticket {ticket_id} does not have an 'ALM PAGE' Info Panel in its description yet."
+                "message": f"Ticket {ticket_id} is missing the 'ALM PAGE' Info Panel or its table."
             })
 
-        # Condition 2: Page already exists (URL does not end in CRMB2B-0)
         if alm_state == "exists":
             return jsonify({
                 "success": True,
@@ -452,7 +557,6 @@ def publish_page(ticket_id):
                 "url": existing_url
             })
 
-        # Condition 1: URL ends with CRMB2B-0 -> proceed with creation!
         readable_description = (
             extract_plain_text_adf(description_adf)
             if description_adf
@@ -481,8 +585,8 @@ def publish_page(ticket_id):
 
         generated_url = confluence_result.get("url")
 
-        # Update Jira description with the new page link
-        update_alm_page_panel_adf(description_adf, generated_url)
+        # Write inlineCard into the LINK cell of the ALM PAGE table
+        update_panel_table_link_adf(description_adf, "ALM PAGE", generated_url, display_text=None)
         jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
 
         if not jira_ok:
@@ -495,6 +599,88 @@ def publish_page(ticket_id):
             "success": True,
             "already_exists": False,
             "url": generated_url
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/create-snow/<ticket_id>", methods=["POST"])
+def create_snow(ticket_id):
+    """
+    Validates that the SNOW Info Panel and its sibling table exist,
+    creates a Change Request (CHG) in ServiceNow if the LINK cell is empty,
+    and writes the CHG number as a clickable link in the Jira table.
+    """
+    try:
+        jira = JIRA(
+            server=JIRA_URL,
+            basic_auth=(JIRA_EMAIL, JIRA_TOKEN),
+            options={"rest_api_version": "3"}
+        )
+
+        issue = jira.issue(ticket_id)
+        description_adf = issue.raw.get("fields", {}).get("description")
+
+        snow_state, existing_snow_url, existing_num = inspect_snow_status(description_adf)
+
+        if snow_state == "none":
+            return jsonify({
+                "success": False,
+                "message": f"Ticket {ticket_id} is missing the 'SNOW' Info Panel or its table."
+            })
+
+        if snow_state == "exists":
+            return jsonify({
+                "success": True,
+                "already_exists": True,
+                "url": existing_snow_url,
+                "number": existing_num
+            })
+
+        readable_description = (
+            extract_plain_text_adf(description_adf)
+            if description_adf
+            else "No description"
+        )
+        prd_pr = extract_prd_pr_adf(description_adf)
+        assignee_name = (
+            issue.fields.assignee.displayName
+            if issue.fields.assignee
+            else "Unassigned"
+        )
+        summary_text = issue.fields.summary if hasattr(issue.fields, "summary") else ticket_id
+
+        ticket_data = {
+            "ticket": ticket_id,
+            "summary": summary_text,
+            "assignee": assignee_name,
+            "description": readable_description,
+            "pr_to_prod": prd_pr
+        }
+
+        snow_result = create_servicenow_change(ticket_data)
+        if not snow_result.get("success"):
+            return jsonify(snow_result)
+
+        generated_snow_url = snow_result.get("url")
+        chg_number = snow_result.get("number", "View SNOW")
+
+        # Write clickable CHG number into the LINK cell of the SNOW table
+        update_panel_table_link_adf(description_adf, "SNOW", generated_snow_url, display_text=chg_number)
+        jira_ok, jira_msg = update_jira_description_adf(ticket_id, description_adf)
+
+        if not jira_ok:
+            return jsonify({
+                "success": False,
+                "message": f"ServiceNow CHG created ({generated_snow_url}), but failed to update Jira: {jira_msg}"
+            })
+
+        return jsonify({
+            "success": True,
+            "already_exists": False,
+            "url": generated_snow_url,
+            "number": chg_number
         })
 
     except Exception as e:

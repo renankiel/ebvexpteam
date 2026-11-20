@@ -1,400 +1,471 @@
-/* Configurações Globais estilo Jira Dark Mode */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+/* =====================================================================
+   JIRA FULL DARK THEME - COMPLETE STYLESHEET
+   Based on mellertson/Jira-Full-Dark-CSS-Theme (jira-full-dark.css)
+   ===================================================================== */
+
+   * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
+*:focus {
+    outline: none;
+}
+
+html,
 body {
-  background-color: #1d2125;
-  color: #c7d1db;
-  padding: 24px;
-  font-size: 14px;
+    background-color: #202020 !important;
+    color: #FAFBFC;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    line-height: 1.42857143;
+    -webkit-font-smoothing: antialiased;
 }
 
+/* --- CUSTOM SCROLLBARS (From jira-full-dark.css) --- */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* --- MAIN LAYOUT CONTAINER --- */
 .jira-container {
-  max-width: 100%;
-  margin: 0 auto;
+    max-width: 100%;
+    min-height: 100vh;
+    background-color: #303030;
+    padding: 20px 28px;
 }
 
-/* Header */
+/* --- HEADER (Matches #dashboard-content > div.aui-page-header) --- */
 .jira-header {
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #353e4a;
+    background-color: #303030;
+    border-bottom: 3px solid #0747A659;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .project-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .project-avatar {
-  font-size: 32px;
-  background: #1c2b42;
-  padding: 8px;
-  border-radius: 4px;
+    width: 40px;
+    height: 40px;
+    background-color: #0747A6;
+    color: #ffffff;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
 }
 
 .jira-header h1 {
-  font-size: 20px;
-  color: #e6edf3;
-  font-weight: 500;
+    color: #FAFBFC !important;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .subtitle {
-  font-size: 13px;
-  color: #8c9bab;
+    color: #999999;
+    font-size: 12px;
+    margin-top: 2px;
 }
 
-/* --- SEÇÃO DO GRÁFICO (Métricas) --- */
-.metrics-section {
-  margin-bottom: 24px;
-}
-
-.metric-card {
-  background-color: #161b22;
-  border: 1px solid #353e4a;
-  border-radius: 6px;
-  padding: 24px;
-}
-
-.metric-card h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: #e6edf3;
-  margin-bottom: 20px;
-}
-
-.chart-container {
-  position: relative;
-  height: 280px;
-  width: 100%;
-}
-
-/* --- ESTILO DAS ABAS --- */
+/* --- HORIZONTAL TABS (Matches div.tabwrap.aui-tabs.horizontal-tabs) --- */
 .tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #353e4a;
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid #404040;
+    margin-bottom: 20px;
+    background-color: #303030;
 }
 
 .tab-button {
-  background-color: transparent;
-  border: none;
-  color: #8c9bab;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s ease;
+    background: #404040;
+    color: #999999;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .tab-button:hover {
-  color: #e6edf3;
+    background-color: #202020;
+    color: #FAFBFC;
 }
 
 .tab-button.active {
-  color: #58a6ff;
-  border-bottom: 2px solid #58a6ff;
+    background-color: #202020;
+    color: #deebff;
+    border-bottom: 3px solid #0747A6;
 }
 
-/* Controle de Exibição das Abas */
 .tab-content {
-  display: none;
+    display: none;
 }
 
 .tab-content.active {
-  display: block;
+    display: block;
 }
 
-/* Títulos das Tabelas */
+/* --- DASHBOARD & CHART SECTION --- */
+.metrics-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.metric-card {
+    background-color: #202020;
+    border: 1px solid #404040;
+    padding: 20px;
+}
+
+.metric-card h3 {
+    color: #FAFBFC !important;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+/* --- SECTION TITLES --- */
 .table-title {
-  padding: 10px 16px;
-  font-weight: bold;
-  font-size: 15px;
-  border-radius: 4px 4px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    background-color: #202020;
+    border-left: 4px solid #0747A6;
+    color: #deebff;
+    margin-bottom: 12px;
 }
 
 .candidates-title {
-  background-color: #2c2415;
-  color: #f8c146;
+    border-left-color: #0747A6;
 }
 
 .ready-title {
-  background-color: #1a2a3a;
-  color: #58a6ff;
+    border-left-color: #3b79d5;
 }
 
 .done-title {
-  background-color: #2b1d36;
-  color: #d3b3fc;
+    border-left-color: #1E982D;
 }
 
-/* Tabela */
+/* --- JIRA ISSUE TABLE (Matches #issuetable & .issue-table) --- */
 .table-responsive {
-  overflow-x: auto;
-  border-radius: 0 0 6px 6px;
-  border: 1px solid #353e4a;
-  background-color: #1d2125;
+    width: 100%;
+    overflow-x: auto;
+    background-color: #202020;
+    border: 1px solid #404040;
 }
 
 .jira-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  white-space: nowrap;
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #202020;
+    text-align: left;
 }
 
-.jira-table th {
-  background-color: #161b22;
-  color: #8c9bab;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 10px 16px;
-  text-transform: uppercase;
-  border-bottom: 2px solid #353e4a;
+.jira-table thead tr th {
+    background-color: #373636;
+    color: #2c78b3 !important;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 10px 12px;
+    border-bottom: 1px solid #404040;
+    white-space: nowrap;
 }
 
-.jira-table td {
-  padding: 8px 16px;
-  border-bottom: 1px solid #2d353f;
-  vertical-align: middle;
+.jira-table tbody tr {
+    background-color: #202020;
+    border-bottom: 1px solid #404040;
+    transition: background-color 0.1s ease;
 }
 
-/* Linha de Versão */
-.version-row {
-  background-color: #252a31 !important;
-  font-weight: bold;
-  color: #f8c146;
+.jira-table tbody tr:hover {
+    background-color: #404040;
 }
 
+.jira-table tbody tr td {
+    padding: 9px 12px;
+    color: #999999;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Version Group Banner Row */
 .version-row td {
-  padding: 12px 16px !important;
+    background-color: #303030 !important;
+    color: #deebff !important;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 8px 12px !important;
+    border-left: 3px solid #0747A6;
 }
 
-/* Links */
-.ticket-link, .alm-link, .snow-link {
-  color: #58a6ff;
-  text-decoration: none;
-  font-weight: 500;
+/* --- LINKS (Matches a, .ghx-issuetable td a) --- */
+.ticket-link,
+.snow-link {
+    color: #2d7fbe;
+    text-decoration: none;
+    font-weight: 600;
 }
 
-.ticket-link:hover, .alm-link:hover, .snow-link:hover {
-  text-decoration: underline;
+.ticket-link:hover,
+.snow-link:hover {
+    color: #3b79d5;
+    text-decoration: underline;
 }
 
-/* Tipos */
-.badge-type {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-}
-.badge-type.story {
-  background-color: #203728;
-  color: #57d9a3;
-}
-.badge-type.task, .badge-type.subtask {
-  background-color: #1c2d42;
-  color: #58a6ff;
-}
-.badge-type.bug {
-  background-color: #421f1d;
-  color: #ff8b8b;
-}
-
-/* Cloud */
-.badge-cloud {
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-}
-.badge-cloud.sales {
-  background-color: #1c2d42;
-  color: #79b8ff;
-}
-.badge-cloud.service {
-  background-color: #2b213f;
-  color: #d3b3fc;
-}
-
-/* Statuses - Mapeados para o fluxo do seu Jira */
-.badge-status {
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: bold;
-  display: inline-block;
-  text-transform: uppercase;
-}
-
-.badge-status.status-dev-backlog, .badge-status.status-backlog {
-  background-color: #322321;
-  color: #f88070;
-}
-.badge-status.status-on-hold {
-  background-color: #3b2c11;
-  color: #f1b44c;
-}
-.badge-status.status-in-dev {
-  background-color: #213340;
-  color: #63b3ed;
-}
-.badge-status.status-dev-complete {
-  background-color: #1b3224;
-  color: #4cd084;
-}
-.badge-status.status-ready-for-test {
-  background-color: #16303d;
-  color: #38bdf8;
-}
-.badge-status.status-in-test {
-  background-color: #1a2a3a;
-  color: #58a6ff;
-}
-.badge-status.status-done {
-  background-color: #2d1d36;
-  color: #d3b3fc;
-}
-.badge-status.status-ready-for-production {
-  background-color: #1c3224;
-  color: #4cd084;
-}
-
-/* Sim/Não (Yes/No) */
-.badge-yn {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-}
-.badge-yn.yes {
-  background-color: #1c3224;
-  color: #4cd084;
-}
-.badge-yn.no {
-  background-color: #341e21;
-  color: #f88070;
-}
-.badge-yn.n-a {
-  background-color: #2d353f;
-  color: #8c9bab;
-}
-
-/* Responsáveis */
+/* --- ASSIGNEE & AVATAR --- */
 .assignee-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #FAFBFC;
 }
 
 .avatar-circle {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background-color: #388bfd;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: bold;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #0747A6;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
 }
 
-.execution-order {
-  font-weight: bold;
-  color: #c7d1db;
+/* --- ISSUE TYPE BADGES (Matches .ghx-type colors from jira-full-dark.css) --- */
+.badge-type {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 3px;
+    color: #ffffff;
+}
+
+.badge-type.story {
+    background-color: #2e6b31;
+}
+
+.badge-type.task,
+.badge-type.subtask {
+    background-color: #2f557b;
+}
+
+.badge-type.bug {
+    background-color: #841f1f;
+}
+
+/* --- CLOUD BADGES --- */
+.badge-cloud {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 3px;
+    background-color: #303030;
+    color: #deebff;
+    border: 1px solid #404040;
+}
+
+.badge-cloud.sales {
+    background-color: #083376;
+    color: #deebff;
+}
+
+.badge-cloud.service {
+    background-color: #443a33;
+    color: #ffffff;
+}
+
+/* --- STATUS LOZENGES (Matches .aui-lozenge from jira-full-dark.css) --- */
+.badge-status {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 3px;
+    background-color: rgba(74, 103, 133, 0.63);
+    border: 1px solid rgba(74, 103, 133, 0.63);
+    color: #FAFBFC;
+}
+
+.badge-status.status-in-dev,
+.badge-status.status-in-test,
+.badge-status.status-ready-for-test,
+.badge-status.status-dev-complete {
+    background-color: rgba(59, 127, 196, 0.63);
+    border-color: rgba(59, 127, 196, 0.63);
+    color: #deebff;
+}
+
+.badge-status.status-on-hold {
+    background-color: rgba(255, 211, 81, 0.63);
+    border-color: rgba(255, 211, 81, 0.63);
+    color: #FAFBFC;
+}
+
+.badge-status.status-ready-for-production,
+.badge-status.status-done {
+    background-color: rgba(20, 137, 44, 0.63);
+    border-color: rgba(20, 137, 44, 0.63);
+    color: #FAFBFC;
+}
+
+/* --- YES / NO BADGES --- */
+.badge-yn {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 3px;
+}
+
+.badge-yn.yes {
+    background-color: #1c2d1a;
+    color: #4FAA47;
+    border: 1px solid #256921;
+}
+
+.badge-yn.no {
+    background-color: #33191a;
+    color: #c76060;
+    border: 1px solid #862a2a;
 }
 
 .pr-text {
-  color: #58a6ff;
-  text-decoration: underline;
-  cursor: pointer;
+    background-color: #083376;
+    color: #FAFBFC;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
 }
 
-/* Limite de exibição para a Descrição */
-.desc-cell {
-  max-width: 280px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #8c9bab;
-}
-
-.desc-cell:hover {
-  color: #e6edf3;
-}
-
-/* --- OFFICIAL JIRA CONFLUENCE BUTTON STYLE --- */
+/* =====================================================================
+   🔵 JIRA PRIMARY BLUE BUTTON ("Create page")
+   Matches .aui-button.aui-button-primary.aui-style in jira-full-dark.css
+   ===================================================================== */
 .btn-confluence {
-  background-color: #1d7c00; /* Jira Official Green */
-  color: #ffffff !important;  /* Jira White Text */
-  border: none;
-  height: 32px;
-  line-height: 32px;
-  padding: 0 12px;
-  border-radius: 3px;         /* Jira Standard Roundness */
-  font-size: 14px;
-  font-weight: 500;           /* Jira Font Weight */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  cursor: pointer;
-  transition: background-color 0.1s ease-out;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
+    background-color: #0747A6; /* Jira Primary Blue from jira-full-dark.css */
+    color: #ffffff !important;
+    border: none;
+    border-radius: 3px;
+    height: 28px;
+    line-height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    text-shadow: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.12s ease-out;
 }
 
 .btn-confluence:hover {
-  background-color: #155c00; /* Jira Hover Green */
+    background-color: #285aa4; /* Hover Blue from jira-full-dark.css */
+    color: #ffffff !important;
 }
 
 .btn-confluence:active {
-  background-color: #0f4000; /* Jira Active/Pressed Green */
+    background-color: #083376; /* Deep Pressed Blue from jira-full-dark.css */
+    color: #deebff !important;
 }
 
-/* Error/Retry State */
+/* Retry / Error State */
 .btn-confluence.btn-error {
-  background-color: #de350b; /* Atlassian Error Red */
+    background-color: #862a2a;
+    color: #ffffff !important;
 }
 
 .btn-confluence.btn-error:hover {
-  background-color: #ff5630;
+    background-color: #c31d1d;
 }
 
+/* Loading State */
 .loading-state {
-  color: #deebff;
-  font-size: 12px;
-  font-weight: 500;
+    color: #deebff;
+    font-size: 12px;
+    font-weight: 500;
 }
 
+/* View Page Button (When Confluence Page already exists) */
 .confluence-link-success {
-  background-color: #1b3224; /* Green Background */
-  color: #4cd084;
-  padding: 4px 10px;
-  border-radius: 4px;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: bold;
-  border: 1px solid #4cd084;
-  transition: all 0.2s ease;
+    background-color: #404040; /* Secondary AUI Button from jira-full-dark.css */
+    color: #deebff !important;
+    border: 1px solid #0747A6;
+    border-radius: 3px;
+    height: 28px;
+    line-height: 26px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
 }
 
 .confluence-link-success:hover {
-  background-color: #4cd084;
-  color: #1d2125;
+    background-color: #0747A6;
+    color: #ffffff !important;
+    text-decoration: none;
 }
 
+/* Dash when ticket has no ALM PAGE Info Panel */
 .no-panel-text {
-  color: #5c6b7d;
-  font-size: 14px;
-  font-weight: bold;
-  user-select: none;
+    color: #606060;
+    font-size: 14px;
+    font-weight: bold;
+    user-select: none;
 }
-

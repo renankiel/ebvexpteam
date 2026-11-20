@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="jira-container">
-        <!-- Header -->
+        <!-- Jira Style Header -->
         <header class="jira-header">
             <div class="project-info">
                 <span class="project-avatar">📊</span>
@@ -20,7 +20,7 @@
             </div>
         </header>
 
-        <!-- Tabs -->
+        <!-- 4-Tab Navigation -->
         <div class="tabs">
             <button class="tab-button active" onclick="openTab(event, 'dashboard')">Dashboard</button>
             <button class="tab-button" onclick="openTab(event, 'candidates')">Candidates</button>
@@ -28,11 +28,11 @@
             <button class="tab-button" onclick="openTab(event, 'done')">Done</button>
         </div>
 
-        <!-- TAB 1: Dashboard -->
+        <!-- TAB 1: Dashboard (Horizontal Bar Chart) -->
         <div id="dashboard" class="tab-content active">
             <section class="metrics-section">
                 <div class="metric-card">
-                    <h3>📊 Tickets Ready for Production por Dia</h3>
+                    <h3>Tickets Ready for Production by Day</h3>
                     <div class="chart-container">
                         <canvas id="productionChart"></canvas>
                     </div>
@@ -52,7 +52,6 @@
                             <th>Type</th>
                             <th>Cloud</th>
                             <th>Status</th>
-                            <th>Description</th>
                             <th>ALM Page</th>
                             <th>Assignee</th>
                             <th>Manual?</th>
@@ -73,27 +72,38 @@
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
-                                    <td>{{ ticket.snow }}</td>
+                                    <!-- 3-State SNOW Column -->
+                                    <td>
+                                        <div id="snow-container-{{ ticket.ticket }}">
+                                            {% if ticket.snow_state == 'exists' %}
+                                                <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                    {{ ticket.snow_number }}
+                                                </a>
+                                            {% elif ticket.snow_state == 'ready' %}
+                                                <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create SNOW
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text" title="No SNOW Info Panel in Jira description">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+
                                     <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                     <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
                                     <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
                                     <td><span class="badge-status status-{{ ticket.status.lower().replace(' ', '-') }}">{{ ticket.status }}</span></td>
-                                    <td>
-                                        <div class="desc-cell" title="{{ ticket.description }}">
-                                            {{ ticket.description }}
-                                        </div>
-                                    </td>
 
-                                    <!-- 🟢 Dynamic 3-State ALM Page Cell -->
+                                    <!-- 3-State ALM Page Column -->
                                     <td>
                                         <div id="alm-container-{{ ticket.ticket }}">
                                             {% if ticket.alm_page_state == 'exists' %}
                                                 <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                    👁️ View Page
+                                                    View page
                                                 </a>
                                             {% elif ticket.alm_page_state == 'ready' %}
                                                 <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                                    Create Page
+                                                    Create page
                                                 </button>
                                             {% else %}
                                                 <span class="no-panel-text" title="No ALM PAGE Info Panel in Jira description">—</span>
@@ -109,7 +119,11 @@
                                     </td>
                                     <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
                                     <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
-                                    <td><span class="pr-text">{{ ticket.pr_to_prod }}</span></td>
+                                    <td>
+                                        {% if ticket.pr_to_prod %}
+                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
                                     <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
                                     <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
@@ -152,7 +166,21 @@
                     <tbody>
                         {% for ticket in ready_prod_tickets %}
                             <tr>
-                                <td>{{ ticket.snow }}</td>
+                                <td>
+                                    <div id="snow-container-{{ ticket.ticket }}">
+                                        {% if ticket.snow_state == 'exists' %}
+                                            <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                {{ ticket.snow_number }}
+                                            </a>
+                                        {% elif ticket.snow_state == 'ready' %}
+                                            <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create SNOW
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                 <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
                                 <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
@@ -161,11 +189,11 @@
                                     <div id="alm-container-{{ ticket.ticket }}">
                                         {% if ticket.alm_page_state == 'exists' %}
                                             <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                👁️ View Page
+                                                View page
                                             </a>
                                         {% elif ticket.alm_page_state == 'ready' %}
                                             <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                                Create Page
+                                                Create page
                                             </button>
                                         {% else %}
                                             <span class="no-panel-text">—</span>
@@ -180,7 +208,11 @@
                                 </td>
                                 <td><span class="badge-yn {{ ticket.manual.lower() }}">{{ ticket.manual }}</span></td>
                                 <td><span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span></td>
-                                <td><span class="pr-text">{{ ticket.pr_to_prod }}</span></td>
+                                <td>
+                                    {% if ticket.pr_to_prod %}
+                                        <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                    {% endif %}
+                                </td>
                                 <td><span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span></td>
                                 <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
                                 <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
@@ -222,7 +254,21 @@
                     <tbody>
                         {% for ticket in done_tickets %}
                             <tr>
-                                <td><a href="#" class="snow-link">{{ ticket.snow }}</a></td>
+                                <td>
+                                    <div id="snow-container-{{ ticket.ticket }}">
+                                        {% if ticket.snow_state == 'exists' %}
+                                            <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                {{ ticket.snow_number }}
+                                            </a>
+                                        {% elif ticket.snow_state == 'ready' %}
+                                            <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create SNOW
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                 <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
                                 <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
@@ -231,11 +277,11 @@
                                     <div id="alm-container-{{ ticket.ticket }}">
                                         {% if ticket.alm_page_state == 'exists' %}
                                             <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                👁️ View Page
+                                                View page
                                             </a>
                                         {% elif ticket.alm_page_state == 'ready' %}
                                             <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                                Create Page
+                                                Create page
                                             </button>
                                         {% else %}
                                             <span class="no-panel-text">—</span>
@@ -271,7 +317,7 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Frontend Scripts -->
     <script>
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
@@ -289,15 +335,13 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // 🟢 Async Confluence Creation & Validation Function
+        // Async Confluence Page Creation & Verification
         function createConfluencePage(ticketId) {
             const container = document.getElementById(`alm-container-${ticketId}`);
             if (!container) return;
 
-            // 1. Loading state
-            container.innerHTML = `<span class="loading-state">⏳ Creating...</span>`;
+            container.innerHTML = `<span class="loading-state">Creating...</span>`;
 
-            // 2. Request backend
             fetch(`/publish-page/${ticketId}`, {
                 method: "POST",
                 headers: {
@@ -307,16 +351,15 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Page created OR already exists -> render green View Page button
                     container.innerHTML = `
                         <a href="${data.url}" target="_blank" class="confluence-link-success">
-                            👁️ View Page
+                            View page
                         </a>`;
                 } else {
                     alert(`Attention: ${data.message}`);
                     container.innerHTML = `
                         <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
-                            ⚠️ Retry Create
+                            Retry create
                         </button>`;
                 }
             })
@@ -324,7 +367,44 @@
                 alert(`Network error: ${error}`);
                 container.innerHTML = `
                     <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
-                        ⚠️ Retry Create
+                        Retry create
+                    </button>`;
+            });
+        }
+
+        // Async ServiceNow Change Request (CHG) Creation & Verification
+        function createSnowChange(ticketId) {
+            const container = document.getElementById(`snow-container-${ticketId}`);
+            if (!container) return;
+
+            container.innerHTML = `<span class="loading-state">Creating...</span>`;
+
+            fetch(`/create-snow/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    container.innerHTML = `
+                        <a href="${data.url}" target="_blank" class="confluence-link-success">
+                            ${data.number}
+                        </a>`;
+                } else {
+                    alert(`Attention: ${data.message}`);
+                    container.innerHTML = `
+                        <button onclick="createSnowChange('${ticketId}')" class="btn-confluence btn-error">
+                            Retry SNOW
+                        </button>`;
+                }
+            })
+            .catch(error => {
+                alert(`Network error: ${error}`);
+                container.innerHTML = `
+                    <button onclick="createSnowChange('${ticketId}')" class="btn-confluence btn-error">
+                        Retry SNOW
                     </button>`;
             });
         }
@@ -336,12 +416,12 @@
             data: {
                 labels: {{ chart_data.labels | tojson }},
                 datasets: [{
-                    label: 'Quantidade de Tickets',
+                    label: 'Tickets',
                     data: {{ chart_data.counts | tojson }},
-                    borderColor: '#4cd084',
-                    backgroundColor: 'rgba(76, 208, 132, 0.25)',
+                    borderColor: '#0747A6',
+                    backgroundColor: 'rgba(7, 71, 166, 0.55)',
                     borderWidth: 1.5,
-                    borderRadius: 4,
+                    borderRadius: 2,
                     barThickness: 24
                 }]
             },
@@ -354,13 +434,13 @@
                 },
                 scales: {
                     x: {
-                        grid: { color: '#2d353f' },
-                        ticks: { color: '#8c9bab', stepSize: 1 },
+                        grid: { color: '#404040' },
+                        ticks: { color: '#999999', stepSize: 1 },
                         beginAtZero: true
                     },
                     y: {
                         grid: { display: false },
-                        ticks: { color: '#8c9bab' }
+                        ticks: { color: '#FAFBFC' }
                     }
                 }
             }
