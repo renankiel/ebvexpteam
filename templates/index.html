@@ -18,14 +18,18 @@
                     <p class="subtitle">Amber Customer Experience Integrations</p>
                 </div>
             </div>
+            <!-- Global AJAX Refresh Button inside Header (Right Aligned) -->
+            <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-confluence">
+                <span id="refresh-icon">🔄</span> Refresh Board
+            </button>
         </header>
 
         <!-- 4-Tab Navigation -->
         <div class="tabs">
-            <button class="tab-button active" onclick="openTab(event, 'dashboard')">Dashboard</button>
-            <button class="tab-button" onclick="openTab(event, 'candidates')">Candidates</button>
-            <button class="tab-button" onclick="openTab(event, 'ready-for-production')">Ready for Production</button>
-            <button class="tab-button" onclick="openTab(event, 'done')">Done</button>
+            <button class="tab-button active" id="tab-dashboard-btn" onclick="openTab(event, 'dashboard')">Dashboard</button>
+            <button class="tab-button" id="tab-candidates-btn" onclick="openTab(event, 'candidates')">Candidates</button>
+            <button class="tab-button" id="tab-ready-for-production-btn" onclick="openTab(event, 'ready-for-production')">Ready for Production</button>
+            <button class="tab-button" id="tab-done-btn" onclick="openTab(event, 'done')">Done</button>
         </div>
 
         <!-- TAB 1: Dashboard (Horizontal Bar Chart) -->
@@ -44,7 +48,7 @@
         <div id="candidates" class="tab-content">
             <div class="table-title candidates-title">Candidates</div>
             <div class="table-responsive">
-                <table class="jira-table">
+                <table class="jira-table" id="candidates-table">
                     <thead>
                         <tr>
                             <th>Snow</th>
@@ -65,10 +69,10 @@
                             <th>Change Hour</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="candidates-tbody">
                         {% for group in candidates %}
                             <tr class="version-row">
-                                <td colspan="16">{{ group.version }}</td>
+                                <td colspan="17">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
@@ -84,15 +88,15 @@
                                                     Create SNOW
                                                 </button>
                                             {% else %}
-                                                <span class="no-panel-text" title="No SNOW Info Panel or Table in Jira description">—</span>
+                                                <span class="no-panel-text" title="No SNOW Info Panel or Table in description">—</span>
                                             {% endif %}
                                         </div>
                                     </td>
 
                                     <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
-                                    <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
-                                    <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
-                                    <td><span class="badge-status status-{{ ticket.status.lower().replace(' ', '-') }}">{{ ticket.status }}</span></td>
+                                    <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                    <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
+                                    <td><span class="badge-status status-{{ ticket.status_lower_dashed }}">{{ ticket.status }}</span></td>
 
                                     <!-- 3-State ALM Page Column -->
                                     <td>
@@ -106,14 +110,14 @@
                                                     Create page
                                                 </button>
                                             {% else %}
-                                                <span class="no-panel-text" title="No ALM PAGE Info Panel or Table in Jira description">—</span>
+                                                <span class="no-panel-text" title="No ALM PAGE Info Panel or Table in description">—</span>
                                             {% endif %}
                                         </div>
                                     </td>
 
                                     <td>
                                         <div class="assignee-cell">
-                                            <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                            <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
                                             {{ ticket.assignee }}
                                         </div>
                                     </td>
@@ -134,7 +138,7 @@
                                         {% if ticket.logs == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
                                         {% else %}
-                                            <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                            <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                         {% endif %}
                                     </td>
 
@@ -152,13 +156,13 @@
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
                                         {% else %}
-                                            <span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span>
+                                            <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                         {% endif %}
                                     </td>
 
-                                    <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
-                                    <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
-                                    <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
+                                    <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
                                     <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                     <td>{{ ticket.change_hour }}</td>
                                 </tr>
@@ -194,7 +198,7 @@
                             <th>Change Hour</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="ready-prod-tbody">
                         {% for ticket in ready_prod_tickets %}
                             <tr>
                                 <td>
@@ -213,8 +217,8 @@
                                     </div>
                                 </td>
                                 <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
-                                <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
-                                <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
+                                <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
                                 <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
@@ -233,12 +237,10 @@
                                 </td>
                                 <td>
                                     <div class="assignee-cell">
-                                        <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                        <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
                                         {{ ticket.assignee }}
                                     </div>
                                 </td>
-
-                                <!-- MANUAL? Column -->
                                 <td>
                                     {% if ticket.manual == 'Yes' %}
                                         <span class="badge-yn yes">Yes</span>
@@ -248,17 +250,13 @@
                                         <span class="no-panel-text">—</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- LOGS? Column -->
                                 <td>
                                     {% if ticket.logs == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
                                     {% else %}
-                                        <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                        <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- PR TO PROD Column -->
                                 <td>
                                     {% if ticket.pr_to_prod == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
@@ -266,19 +264,16 @@
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- PR VALIDATED? Column -->
                                 <td>
                                     {% if ticket.pr_validated == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
                                     {% else %}
-                                        <span class="badge-yn {{ ticket.pr_validated.lower() }}">{{ ticket.pr_validated }}</span>
+                                        <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                     {% endif %}
                                 </td>
-
-                                <td><span class="badge-yn {{ ticket.dev_signoff.lower() }}">{{ ticket.dev_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.qa_signoff.lower() }}">{{ ticket.qa_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.uat_signoff.lower() }}">{{ ticket.uat_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
                                 <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                 <td>{{ ticket.change_hour }}</td>
                             </tr>
@@ -313,7 +308,7 @@
                             <th>Change Hour</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="done-tbody">
                         {% for ticket in done_tickets %}
                             <tr>
                                 <td>
@@ -332,8 +327,8 @@
                                     </div>
                                 </td>
                                 <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
-                                <td><span class="badge-type {{ ticket.type.lower() }}">{{ ticket.type }}</span></td>
-                                <td><span class="badge-cloud {{ ticket.cloud.lower() }}">{{ ticket.cloud }}</span></td>
+                                <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
                                 <td><span class="badge-status status-done">{{ ticket.status }}</span></td>
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
@@ -352,12 +347,10 @@
                                 </td>
                                 <td>
                                     <div class="assignee-cell">
-                                        <span class="avatar-circle">{{ ticket.assignee[0] }}</span>
+                                        <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
                                         {{ ticket.assignee }}
                                     </div>
                                 </td>
-
-                                <!-- MANUAL? Column -->
                                 <td>
                                     {% if ticket.manual == 'Yes' %}
                                         <span class="badge-yn yes">Yes</span>
@@ -367,17 +360,13 @@
                                         <span class="no-panel-text">—</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- LOGS? Column -->
                                 <td>
                                     {% if ticket.logs == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
                                     {% else %}
-                                        <span class="badge-yn {{ ticket.logs.lower() }}">{{ ticket.logs }}</span>
+                                        <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- PR TO PROD Column -->
                                 <td>
                                     {% if ticket.pr_to_prod == "N/A" %}
                                         <span class="badge-yn na">N/A</span>
@@ -385,19 +374,16 @@
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
-
-                                <!-- PR VALIDATED? Column -->
                                 <td>
                                     {% if ticket.pr_validated == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
                                     {% else %}
-                                        <span class="badge-yn {{ ticket.pr_validated.lower().replace('/', '-') }}">{{ ticket.pr_validated }}</span>
+                                        <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                     {% endif %}
                                 </td>
-
-                                <td><span class="badge-yn {{ ticket.dev_signoff.lower().replace('/', '-') }}">{{ ticket.dev_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.qa_signoff.lower().replace('/', '-') }}">{{ ticket.qa_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.uat_signoff.lower().replace('/', '-') }}">{{ ticket.uat_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
+                                <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
                                 <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                 <td>{{ ticket.change_hour }}</td>
                             </tr>
@@ -410,6 +396,8 @@
 
     <!-- Frontend Scripts -->
     <script>
+        const JIRA_BASE_URL = "{{ jira_url }}";
+
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tab-content");
@@ -424,6 +412,160 @@
 
             document.getElementById(tabName).classList.add("active");
             evt.currentTarget.classList.add("active");
+        }
+
+        // Helper function to build 3-state SNOW HTML cell
+        function renderSnowCell(ticket) {
+            if (ticket.snow_state === 'exists') {
+                return `
+                    <div id="snow-container-${ticket.ticket}">
+                        <a href="${ticket.snow_url}" target="_blank" class="confluence-link-success">
+                            ${ticket.snow_number}
+                        </a>
+                    </div>`;
+            } else if (ticket.snow_state === 'ready') {
+                return `
+                    <div id="snow-container-${ticket.ticket}">
+                        <button onclick="createSnowChange('${ticket.ticket}')" class="btn-confluence">
+                            Create SNOW
+                        </button>
+                    </div>`;
+            } else {
+                return `<div id="snow-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
+            }
+        }
+
+        // Helper function to build 3-state ALM PAGE HTML cell
+        function renderAlmCell(ticket) {
+            if (ticket.alm_page_state === 'exists') {
+                return `
+                    <div id="alm-container-${ticket.ticket}">
+                        <a href="${ticket.alm_page_url}" target="_blank" class="confluence-link-success">
+                            View page
+                        </a>
+                    </div>`;
+            } else if (ticket.alm_page_state === 'ready') {
+                return `
+                    <div id="alm-container-${ticket.ticket}">
+                        <button onclick="createConfluencePage('${ticket.ticket}')" class="btn-confluence">
+                            Create page
+                        </button>
+                    </div>`;
+            } else {
+                return `<div id="alm-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
+            }
+        }
+
+        // ASYNCHRONOUS GLOBAL REFRESH FUNCTION
+        function refreshBoardData() {
+            const refreshBtn = document.getElementById("global-refresh-btn");
+            const refreshIcon = document.getElementById("refresh-icon");
+
+            refreshBtn.disabled = true;
+            refreshIcon.classList.add("spin-animation");
+
+            fetch('/api/refresh')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 1. Re-render Candidates Tab
+                    const candidatesTbody = document.getElementById("candidates-tbody");
+                    candidatesTbody.innerHTML = "";
+
+                    data.candidates.forEach(group => {
+                        candidatesTbody.innerHTML += `
+                            <tr class="version-row">
+                                <td colspan="16">${group.version}</td>
+                            </tr>`;
+
+                        group.tickets.forEach(ticket => {
+                            const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                            
+                            const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                            const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                            candidatesTbody.innerHTML += `
+                                <tr>
+                                    <td>${renderSnowCell(ticket)}</td>
+                                    <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                    <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                    <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                    <td><span class="badge-status status-${ticket.status_lower_dashed}">${ticket.status}</span></td>
+                                    <td>${renderAlmCell(ticket)}</td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                            ${ticket.assignee}
+                                        </div>
+                                    </td>
+                                    <td>${manualBadge}</td>
+                                    <td>${logsBadge}</td>
+                                    <td>${prProdBadge}</td>
+                                    <td>${prValidatedBadge}</td>
+                                    <td><span class="badge-yn ${ticket.dev_signoff_lower}">${ticket.dev_signoff}</span></td>
+                                    <td><span class="badge-yn ${ticket.qa_signoff_lower}">${ticket.qa_signoff}</span></td>
+                                    <td><span class="badge-yn ${ticket.uat_signoff_lower}">${ticket.uat_signoff}</span></td>
+                                    <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                    <td>${ticket.change_hour}</td>
+                                </tr>`;
+                        });
+                    });
+
+                    // 2. Re-render Done Tab
+                    const doneTbody = document.getElementById("done-tbody");
+                    doneTbody.innerHTML = "";
+
+                    data.done_tickets.forEach(ticket => {
+                        const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                        
+                        const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                        const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                        const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                        doneTbody.innerHTML += `
+                            <tr>
+                                <td>${renderSnowCell(ticket)}</td>
+                                <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                <td><span class="badge-status status-done">${ticket.status}</span></td>
+                                <td>${renderAlmCell(ticket)}</td>
+                                <td>
+                                    <div class="assignee-cell">
+                                        <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                        ${ticket.assignee}
+                                    </div>
+                                </td>
+                                <td>${manualBadge}</td>
+                                <td>${logsBadge}</td>
+                                <td>${prProdBadge}</td>
+                                <td>${prValidatedBadge}</td>
+                                <td><span class="badge-yn ${ticket.dev_signoff_lower}">${ticket.dev_signoff}</span></td>
+                                <td><span class="badge-yn ${ticket.qa_signoff_lower}">${ticket.qa_signoff}</span></td>
+                                <td><span class="badge-yn ${ticket.uat_signoff_lower}">${ticket.uat_signoff}</span></td>
+                                <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                <td>${ticket.change_hour}</td>
+                            </tr>`;
+                    });
+
+                    // 3. Update Chart
+                    productionChart.data.labels = data.chart_data.labels;
+                    productionChart.data.datasets[0].data = data.chart_data.counts;
+                    productionChart.update();
+                } else {
+                    alert("Failed to refresh: " + data.message);
+                }
+            })
+            .catch(error => {
+                alert("Network error while refreshing board: " + error);
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    refreshBtn.disabled = false;
+                    refreshIcon.classList.remove("spin-animation");
+                }, 600);
+            });
         }
 
         // Async Confluence Page Creation & Verification

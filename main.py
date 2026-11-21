@@ -152,12 +152,7 @@ def extract_prd_pr_adf(adf_description):
 
 
 def find_url_and_text_in_node(node):
-    """
-    Recursively searches inside an ADF node for a link:
-    1. 'inlineCard' -> returns (attrs.url, last_url_segment)
-    2. 'text' with 'link' mark -> returns (mark.attrs.href, node.text)
-    3. Raw 'text' starting with http:// or https:// -> returns (raw_text, raw_text)
-    """
+    """Recursively searches inside an ADF node for a link (Card or classic text link)."""
     if isinstance(node, list):
         for item in node:
             url, text = find_url_and_text_in_node(item)
@@ -189,10 +184,7 @@ def find_url_and_text_in_node(node):
 
 
 def node_contains_media(node):
-    """
-    Recursively checks if an ADF node contains a media file
-    (e.g., 'mediaInline', 'media', 'mediaSingle' or attrs.type == 'file').
-    """
+    """Recursively checks if an ADF node contains a media file."""
     if isinstance(node, list):
         return any(node_contains_media(item) for item in node)
     elif isinstance(node, dict):
@@ -212,10 +204,7 @@ def node_contains_media(node):
 
 
 def find_panel_table(adf_description, panel_keyword):
-    """
-    Finds the Info Panel matching 'panel_keyword' (e.g., 'ALM PAGE', 'SNOW', 'DEPLOYMENT RESULTS')
-    and returns the sibling 'table' block that immediately follows it in the ADF document.
-    """
+    """Finds the Info Panel matching panel_keyword and returns its following table block."""
     if not isinstance(adf_description, dict):
         return None
 
@@ -284,11 +273,7 @@ def get_link_cell_from_table(table_node):
 
 
 def check_deployment_results_logs(description_adf):
-    """
-    Checks the 'DEPLOYMENT RESULTS' panel and its sibling table.
-    Returns 'Yes' if every data row contains a media file in the FILE column (last cell).
-    Otherwise returns 'No'.
-    """
+    """Returns 'Yes' if every row contains a media file in 'DEPLOYMENT RESULTS' table, else 'No'."""
     table_node = find_panel_table(description_adf, "DEPLOYMENT RESULTS")
     if not table_node:
         return "No"
@@ -311,7 +296,6 @@ def check_deployment_results_logs(description_adf):
     if not data_rows:
         return "No"
 
-    # In this table, the FILE column is always the last cell of each data row
     for cells in data_rows:
         file_cell = cells[-1]
         if not node_contains_media(file_cell):
@@ -321,10 +305,7 @@ def check_deployment_results_logs(description_adf):
 
 
 def inspect_alm_page_status(description_adf):
-    """
-    Checks if both the 'ALM PAGE' Info Panel and its sibling table exist.
-    Returns: ('none', '') | ('ready', '') | ('exists', url)
-    """
+    """Inspects 'ALM PAGE' status. Returns ('none', '') | ('ready', '') | ('exists', url)."""
     table_node = find_panel_table(description_adf, "ALM PAGE")
     if not table_node:
         return "none", ""
@@ -340,10 +321,7 @@ def inspect_alm_page_status(description_adf):
 
 
 def inspect_snow_status(description_adf):
-    """
-    Checks if both the 'SNOW' Info Panel and its sibling table exist.
-    Returns: ('none', '', '') | ('ready', '', '') | ('exists', url, display_text)
-    """
+    """Inspects 'SNOW' status. Returns ('none', '', '') | ('ready', '', '') | ('exists', url, display_text)."""
     table_node = find_panel_table(description_adf, "SNOW")
     if not table_node:
         return "none", "", ""
@@ -360,7 +338,7 @@ def inspect_snow_status(description_adf):
 
 
 def update_panel_table_link_adf(adf_description, panel_keyword, new_url, display_text=None):
-    """Updates the 'LINK' cell of the table following the Info Panel."""
+    """Updates the LINK cell of the specified Info Panel's table."""
     table_node = find_panel_table(adf_description, panel_keyword)
     if not table_node:
         return False
@@ -475,7 +453,7 @@ def fetch_jira_data():
             labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
-            # 🟢 MANUAL? Label Evaluation
+            # MANUAL? Label Evaluation
             has_pull_request = "pull-request" in labels_lower
             has_manually = "manually" in labels_lower
 
@@ -495,11 +473,8 @@ def fetch_jira_data():
             )
 
             prd_pr = extract_prd_pr_adf(description_adf)
-
-            # 🟢 Inspect Deployment Results logs presence
             logs_status = check_deployment_results_logs(description_adf)
 
-            # 🟢 Apply 'N/A' overrides when MANUAL? is 'Yes'
             if manual_val == "Yes":
                 logs_val = "N/A"
                 pr_to_prod_val = "N/A"
@@ -509,30 +484,41 @@ def fetch_jira_data():
                 pr_to_prod_val = prd_pr
                 pr_validated_val = "Yes" if prd_pr else "No"
 
-            # Inspect ALM PAGE and SNOW panels + sibling tables
             alm_state, alm_url = inspect_alm_page_status(description_adf)
             snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
 
+            # 🟢 BACKEND SPREAD FOR WEB COMPLIANCE:
+            # We lowercase all badge properties directly in python to prevent
+            # '.lower()' JS syntax errors on the frontend!
             ticket_obj = {
                 "snow_state": snow_state,
                 "snow_url": snow_url,
                 "snow_number": snow_num or "View SNOW",
                 "ticket": issue.key,
                 "type": formatted_type,
+                "type_lower": formatted_type.lower(),
                 "cloud": cloud_val,
+                "cloud_lower": cloud_val.lower(),
                 "status": current_status,
+                "status_lower_dashed": current_status.lower().replace(' ', '-'),
                 "description": readable_description,
-                "description_adf": description_adf,
                 "alm_page_state": alm_state,
                 "alm_page_url": alm_url,
                 "assignee": assignee_name,
+                "assignee_initial": assignee_name[0] if assignee_name else "?",
                 "manual": manual_val,
+                "manual_lower": manual_val.lower(),
                 "logs": logs_val,
+                "logs_lower": logs_val.lower().replace('/', '-'),
                 "pr_to_prod": pr_to_prod_val,
                 "pr_validated": pr_validated_val,
+                "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
                 "dev_signoff": "Yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "No",
+                "dev_signoff_lower": "yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "no",
                 "qa_signoff": "Yes" if current_status == "DONE" else "No",
+                "qa_signoff_lower": "yes" if current_status == "DONE" else "no",
                 "uat_signoff": "Yes" if current_status == "DONE" else "No",
+                "uat_signoff_lower": "yes" if current_status == "DONE" else "no",
                 "execution_order": "",
                 "change_hour": ""
             }
@@ -590,6 +576,22 @@ def home():
         chart_data=CHART_DATA,
         jira_url=JIRA_URL or "https://atlassian.net"
     )
+
+
+# AJAX REFRESH API ENDPOINT
+@app.route("/api/refresh", methods=["GET"])
+def api_refresh():
+    """
+    Fetches real-time structured data from Jira REST API v3 and Chart data.
+    Returns JSON format directly to the frontend for seamless UI rendering.
+    """
+    candidates_data, done_data = fetch_jira_data()
+    return jsonify({
+        "success": True,
+        "candidates": candidates_data,
+        "done_tickets": done_data,
+        "chart_data": CHART_DATA
+    })
 
 
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
