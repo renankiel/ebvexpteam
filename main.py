@@ -483,20 +483,25 @@ def extract_change_hour_from_snow(description_adf):
 
 def parse_confluence_approvals(page_id):
     """
-    Busca o corpo ADF ao vivo da página do Confluence e extrai o status de aprovação
-    pela posição das linhas na coluna STATUS:
-      - 1ª linha de dados: Desconsiderar (Executive)
-      - 2ª linha de dados: UAT
-      - 3ª linha de dados: QA
-      - 4ª linha de dados: DEVINT
+    Busca o corpo ADF ao vivo da página do Confluence e extrai o status de aprovação:
+      - Linha 1 de dados (Índice 0 - Executive): Desconsiderar
+      - Linha 2 de dados (Índice 1): UAT
+      - Linha 3 de dados (Índice 2): QA
+      - Linha 4 de dados (Índice 3): DEVINT
     """
+    import json  # 🟢 CORREÇÃO: Importado localmente para garantir que esteja definido!
+    
     statuses = {"DEVINT": False, "QA": False, "UAT": False}
     if not page_id:
+        print("⚠️ [DEBUG SIGNOFF] Nenhum page_id fornecido. Retornando False.")
         return statuses
 
     try:
-        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+        base_url = (JIRA_URL or "").rstrip("/")
+        url = f"{base_url}/wiki/api/v2/pages/{page_id}"
         headers = {"Accept": "application/json"}
+
+        print(f"📡 [DEBUG SIGNOFF] Consultando Confluence Page ID: {page_id}")
         resp = requests.get(
             url,
             params={"body-format": "atlas_doc_format"},
@@ -505,95 +510,99 @@ def parse_confluence_approvals(page_id):
             timeout=15
         )
 
-        if resp.status_code == 200:
-            page_data = resp.json()
-            body_val = page_data.get("body", {}).get("atlas_doc_format", {}).get("value", "")
+        print(f"📥 [DEBUG SIGNOFF] HTTP Status: {resp.status_code}")
 
-            adf_body = None
-            if body_val:
-                if isinstance(body_val, str):
-                    try:
-                        adf_body = json.loads(body_val)
-                    except json.JSONDecodeError:
-                        adf_body = None
+        if resp.status_code != 200:
+            print(f"❌ [DEBUG SIGNOFF] Erro HTTP Confluence: {resp.text[:200]}")
+            return statuses
+
+        page_data = resp.json()
+        body_val = page_data.get("body", {}).get("atlas_doc_format", {}).get("value", None)
+
+        adf_body = None
+        if isinstance(body_val, str):
+            try:
+                adf_body = json.loads(body_val)
+            except Exception as json_err:
+                print(f"❌ [DEBUG SIGNOFF] Erro ao decodificar JSON ADF: {json_err}")
+        elif isinstance(body_val, dict):
+            adf_body = body_val
+
+        if not isinstance(adf_body, dict):
+            print("⚠️ [DEBUG SIGNOFF] ADF vazio ou inválido na resposta da API.")
+            return statuses
+
+        # 1. Encontra todas as tabelas no ADF
+        tables = []
+        def find_tables(node):
+            if isinstance(node, list):
+                for item in node:
+                    find_tables(item)
+            elif isinstance(node, dict):
+                if node.get("type") == "table":
+                    tables.append(node)
+                for child in node.get("content", []):
+                    find_tables(child)
+
+        find_tables(adf_body)
+
+        # 2. Avalia se uma célula possui taskItem marcado como 'DONE'
+        def is_cell_approved(cell_node):
+            state = "TODO"
+            def check_state(n):
+                nonlocal state
+                if isinstance(n, list):
+                    for item in n:
+                        check_state(item)
+                elif isinstance(n, dict):
+                    if n.get("type") == "taskItem":
+                        state = n.get("attrs", {}).get("state", "TODO")
+                    for child in n.get("content", []):
+                        check_state(child)
+            check_state(cell_node)
+            return state == "DONE"
+
+        # 3. Percorre as tabelas procurando a coluna STATUS
+        for t_idx, table in enumerate(tables):
+            rows = table.get("content", [])
+            status_col_idx = None
+            data_rows = []
+
+            for row in rows:
+                if not isinstance(row, dict) or row.get("type") != "tableRow":
+                    continue
+                cells = row.get("content", [])
+                if not cells:
+                    continue
+
+                row_texts = [extract_plain_text_adf(c).upper().strip() for c in cells]
+                if "STATUS" in row_texts:
+                    status_col_idx = row_texts.index("STATUS")
                 else:
-                    adf_body = body_val
+                    data_rows.append(cells)
 
-            if isinstance(adf_body, dict):
-                # 1. Localiza todas as tabelas no ADF
-                tables = []
-                def find_tables(node):
-                    if isinstance(node, list):
-                        for item in node:
-                            find_tables(item)
-                    elif isinstance(node, dict):
-                        if node.get("type") == "table":
-                            tables.append(node)
-                        for child in node.get("content", []):
-                            find_tables(child)
+            if status_col_idx is not None and data_rows:
+                print(f"✅ [DEBUG SIGNOFF] Tabela de aprovações encontrada com {len(data_rows)} linhas de dados.")
 
-                find_tables(adf_body)
+                # Linha 2 de dados -> UAT
+                if len(data_rows) > 1 and len(data_rows[1]) > status_col_idx:
+                    statuses["UAT"] = is_cell_approved(data_rows[1][status_col_idx])
 
-                # 2. Função auxiliar para verificar se a célula possui taskItem marcado como 'DONE'
-                def is_cell_approved(cell_node):
-                    approved = False
-                    def check_task(n):
-                        nonlocal approved
-                        if isinstance(n, list):
-                            for item in n:
-                                check_task(item)
-                        elif isinstance(n, dict):
-                            if n.get("type") == "taskItem":
-                                if n.get("attrs", {}).get("state") == "DONE":
-                                    approved = True
-                            for child in n.get("content", []):
-                                check_task(child)
-                    check_task(cell_node)
-                    return approved
+                # Linha 3 de dados -> QA
+                if len(data_rows) > 2 and len(data_rows[2]) > status_col_idx:
+                    statuses["QA"] = is_cell_approved(data_rows[2][status_col_idx])
 
-                # 3. Percorre as tabelas procurando a coluna STATUS
-                for table in tables:
-                    rows = table.get("content", [])
-                    status_col_idx = None
-                    data_rows = []
+                # Linha 4 de dados -> DEVINT
+                if len(data_rows) > 3 and len(data_rows[3]) > status_col_idx:
+                    statuses["DEVINT"] = is_cell_approved(data_rows[3][status_col_idx])
 
-                    for row in rows:
-                        if not isinstance(row, dict) or row.get("type") != "tableRow":
-                            continue
-                        cells = row.get("content", [])
-                        if not cells:
-                            continue
-
-                        # Extrai o texto limpo de cada célula da linha para achar a coluna STATUS
-                        row_texts = [extract_plain_text_adf(c).upper().strip() for c in cells]
-                        if "STATUS" in row_texts:
-                            status_col_idx = row_texts.index("STATUS")
-                        else:
-                            data_rows.append(cells)
-
-                    # Se encontrou a tabela que contém a coluna STATUS
-                    if status_col_idx is not None and data_rows:
-                        # Regra 1: 1ª linha de dados (Índice 0 - Executive) -> Desconsiderar
-
-                        # Regra 2: 2ª linha de dados (Índice 1) -> UAT
-                        if len(data_rows) > 1 and len(data_rows[1]) > status_col_idx:
-                            statuses["UAT"] = is_cell_approved(data_rows[1][status_col_idx])
-
-                        # Regra 3: 3ª linha de dados (Índice 2) -> QA
-                        if len(data_rows) > 2 and len(data_rows[2]) > status_col_idx:
-                            statuses["QA"] = is_cell_approved(data_rows[2][status_col_idx])
-
-                        # Regra 4: 4ª linha de dados (Índice 3) -> DEVINT
-                        if len(data_rows) > 3 and len(data_rows[3]) > status_col_idx:
-                            statuses["DEVINT"] = is_cell_approved(data_rows[3][status_col_idx])
-
-                        break
+                print(f"🎯 [DEBUG SIGNOFF] Resultado das aprovações extraídas: {statuses}")
+                break
 
     except Exception as e:
-        print(f"⚠️ Error parsing live Confluence approvals: {e}")
+        print(f"⚠️ [DEBUG SIGNOFF] Exceção durante parsing: {e}")
 
-    return statuses
-
+    return statuses 
 
 def update_panel_table_link_adf(adf_description, panel_keyword, new_url, display_text=None):
     """Updates the LINK cell of the table following the Info Panel."""
