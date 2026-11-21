@@ -22,7 +22,7 @@ elif os.path.exists(env_path_txt):
 else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
 
-from confluence_publisher import publish_to_confluence
+from confluence_publisher import publish_to_confluence, sync_attachments_to_confluence
 from servicenow_publisher import create_servicenow_change
 
 app = Flask(__name__)
@@ -60,18 +60,28 @@ READY_FOR_PRODUCTION_TICKETS = [
         "snow_number": "CHG1326437",
         "ticket": "CRMB2B-31284",
         "type": "Story",
+        "type_lower": "story",
         "cloud": "Sales",
+        "cloud_lower": "sales",
         "status": "Ready For Production",
+        "status_lower_dashed": "ready-for-production",
         "alm_page_state": "ready",
         "alm_page_url": "",
         "assignee": "Renan Kiel",
+        "assignee_initial": "R",
         "manual": "No",
+        "manual_lower": "no",
         "logs": "Yes",
+        "logs_lower": "yes",
         "pr_to_prod": "20945",
         "pr_validated": "No",
+        "pr_validated_lower": "no",
         "dev_signoff": "Yes",
+        "dev_signoff_lower": "yes",
         "qa_signoff": "Yes",
+        "qa_signoff_lower": "yes",
         "uat_signoff": "Yes",
+        "uat_signoff_lower": "yes",
         "execution_order": "",
         "change_hour": "12/11 07:00"
     }
@@ -203,6 +213,25 @@ def node_contains_media(node):
     return False
 
 
+def collect_media_nodes_from_node(node, collected_list):
+    """
+    Recursively collects all 'mediaInline' / 'media' attribute dictionaries
+    inside a given ADF node.
+    """
+    if isinstance(node, list):
+        for item in node:
+            collect_media_nodes_from_node(item, collected_list)
+    elif isinstance(node, dict):
+        node_type = node.get("type", "")
+        if node_type in ["mediaInline", "media"]:
+            attrs = node.get("attrs", {})
+            if attrs:
+                collected_list.append(attrs)
+
+        for child in node.get("content", []):
+            collect_media_nodes_from_node(child, collected_list)
+
+
 def find_panel_table(adf_description, panel_keyword):
     """Finds the Info Panel matching panel_keyword and returns its following table block."""
     if not isinstance(adf_description, dict):
@@ -302,6 +331,64 @@ def check_deployment_results_logs(description_adf):
             return "No"
 
     return "Yes"
+
+
+def extract_deployment_results_attachments(issue_raw, description_adf):
+    """
+    Extracts all media files referenced in the 'DEPLOYMENT RESULTS' table
+    and matches them against the Jira issue's attachment list to get their download URLs.
+    """
+    table_node = find_panel_table(description_adf, "DEPLOYMENT RESULTS")
+    if not table_node:
+        return []
+
+    media_attrs_list = []
+    for row in table_node.get("content", []):
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+        cells = row.get("content", [])
+        if not cells:
+            continue
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            continue
+
+        # Collect media from the FILE cell (last cell of each row)
+        collect_media_nodes_from_node(cells[-1], media_attrs_list)
+
+    if not media_attrs_list:
+        return []
+
+    issue_attachments = issue_raw.get("fields", {}).get("attachment", []) or []
+    attachments_by_name = {}
+    for att in issue_attachments:
+        fname = att.get("filename")
+        if fname:
+            attachments_by_name[fname] = {
+                "filename": fname,
+                "content_url": att.get("content"),
+                "mime_type": att.get("mimeType", "application/octet-stream")
+            }
+
+    matched_attachments = []
+    seen_filenames = set()
+
+    # 1. Match by 'alt' filename from the ADF mediaInline node
+    for m_attr in media_attrs_list:
+        alt_name = (m_attr.get("alt") or "").strip()
+        if alt_name and alt_name in attachments_by_name and alt_name not in seen_filenames:
+            matched_attachments.append(attachments_by_name[alt_name])
+            seen_filenames.add(alt_name)
+
+    # 2. Fallback: if mediaInline nodes in Jira ADF did not store 'alt' text (only UUID),
+    # sync all attachments present on the Jira ticket
+    if not matched_attachments and issue_attachments:
+        for fname, att_info in attachments_by_name.items():
+            if fname not in seen_filenames:
+                matched_attachments.append(att_info)
+                seen_filenames.add(fname)
+
+    return matched_attachments
 
 
 def inspect_alm_page_status(description_adf):
@@ -453,7 +540,6 @@ def fetch_jira_data():
             labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
-            # MANUAL? Label Evaluation
             has_pull_request = "pull-request" in labels_lower
             has_manually = "manually" in labels_lower
 
@@ -487,9 +573,6 @@ def fetch_jira_data():
             alm_state, alm_url = inspect_alm_page_status(description_adf)
             snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
 
-            # 🟢 BACKEND SPREAD FOR WEB COMPLIANCE:
-            # We lowercase all badge properties directly in python to prevent
-            # '.lower()' JS syntax errors on the frontend!
             ticket_obj = {
                 "snow_state": snow_state,
                 "snow_url": snow_url,
@@ -578,13 +661,8 @@ def home():
     )
 
 
-# AJAX REFRESH API ENDPOINT
 @app.route("/api/refresh", methods=["GET"])
 def api_refresh():
-    """
-    Fetches real-time structured data from Jira REST API v3 and Chart data.
-    Returns JSON format directly to the frontend for seamless UI rendering.
-    """
     candidates_data, done_data = fetch_jira_data()
     return jsonify({
         "success": True,
@@ -663,6 +741,44 @@ def publish_page(ticket_id):
             "already_exists": False,
             "url": generated_url
         })
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+# 🟢 NEW ENDPOINT: SYNC DEPLOYMENT RESULTS ATTACHMENTS TO CONFLUENCE PAGE
+@app.route("/update-page/<ticket_id>", methods=["POST"])
+def update_page(ticket_id):
+    """
+    1. Verifies that the ticket's Confluence ALM Page already exists.
+    2. Extracts all media files from the 'DEPLOYMENT RESULTS' table in Jira.
+    3. Deletes any existing file with the same name on Confluence and uploads the new one.
+    """
+    try:
+        jira = JIRA(
+            server=JIRA_URL,
+            basic_auth=(JIRA_EMAIL, JIRA_TOKEN),
+            options={"rest_api_version": "3"}
+        )
+
+        issue = jira.issue(ticket_id)
+        description_adf = issue.raw.get("fields", {}).get("description")
+
+        alm_state, existing_url = inspect_alm_page_status(description_adf)
+        if alm_state != "exists" or not existing_url:
+            return jsonify({
+                "success": False,
+                "message": f"Confluence ALM Page does not exist yet for ticket {ticket_id}."
+            })
+
+        attachments_to_sync = extract_deployment_results_attachments(issue.raw, description_adf)
+
+        sync_result = sync_attachments_to_confluence(
+            ticket_key=ticket_id,
+            page_url=existing_url,
+            attachments_to_sync=attachments_to_sync
+        )
+        return jsonify(sync_result)
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})

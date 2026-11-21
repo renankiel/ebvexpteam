@@ -18,7 +18,7 @@
                     <p class="subtitle">Amber Customer Experience Integrations</p>
                 </div>
             </div>
-            <!-- Global AJAX Refresh Button inside Header (Right Aligned) -->
+            <!-- Global AJAX Refresh Button -->
             <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-confluence">
                 <span id="refresh-icon">🔄</span> Refresh Board
             </button>
@@ -72,7 +72,7 @@
                     <tbody id="candidates-tbody">
                         {% for group in candidates %}
                             <tr class="version-row">
-                                <td colspan="17">{{ group.version }}</td>
+                                <td colspan="16">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
@@ -98,13 +98,25 @@
                                     <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
                                     <td><span class="badge-status status-{{ ticket.status_lower_dashed }}">{{ ticket.status }}</span></td>
 
-                                    <!-- 3-State ALM Page Column -->
+                                    <!-- 3-State ALM Page Column (Icon Buttons for View & Update) -->
                                     <td>
                                         <div id="alm-container-{{ ticket.ticket }}">
                                             {% if ticket.alm_page_state == 'exists' %}
-                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                    View page
-                                                </a>
+                                                <div class="alm-action-group">
+                                                    <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                            <circle cx="12" cy="12" r="3"></circle>
+                                                        </svg>
+                                                    </a>
+                                                    <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                        <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                                            <polyline points="1 20 1 14 7 14"></polyline>
+                                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             {% elif ticket.alm_page_state == 'ready' %}
                                                 <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
                                                     Create page
@@ -122,7 +134,6 @@
                                         </div>
                                     </td>
 
-                                    <!-- MANUAL? Column -->
                                     <td>
                                         {% if ticket.manual == 'Yes' %}
                                             <span class="badge-yn yes">Yes</span>
@@ -133,7 +144,6 @@
                                         {% endif %}
                                     </td>
 
-                                    <!-- LOGS? Column -->
                                     <td>
                                         {% if ticket.logs == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -142,7 +152,6 @@
                                         {% endif %}
                                     </td>
 
-                                    <!-- PR TO PROD Column -->
                                     <td>
                                         {% if ticket.pr_to_prod == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -151,7 +160,6 @@
                                         {% endif %}
                                     </td>
 
-                                    <!-- PR VALIDATED? Column -->
                                     <td>
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -223,9 +231,21 @@
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
                                         {% if ticket.alm_page_state == 'exists' %}
-                                            <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                View page
-                                            </a>
+                                            <div class="alm-action-group">
+                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                </a>
+                                                <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                    <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         {% elif ticket.alm_page_state == 'ready' %}
                                             <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
                                                 Create page
@@ -333,9 +353,21 @@
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
                                         {% if ticket.alm_page_state == 'exists' %}
-                                            <a href="{{ ticket.alm_page_url }}" target="_blank" class="confluence-link-success">
-                                                View page
-                                            </a>
+                                            <div class="alm-action-group">
+                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                </a>
+                                                <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                    <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         {% elif ticket.alm_page_state == 'ready' %}
                                             <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
                                                 Create page
@@ -414,7 +446,26 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // Helper function to build 3-state SNOW HTML cell
+        // Reusable SVG Icons for View Page & Update Page
+        function getAlmExistsHtml(ticketId, pageUrl) {
+            return `
+                <div class="alm-action-group">
+                    <a href="${pageUrl}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </a>
+                    <button id="update-alm-btn-${ticketId}" onclick="updateConfluencePage('${ticketId}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                        <svg id="update-alm-icon-${ticketId}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                </div>`;
+        }
+
         function renderSnowCell(ticket) {
             if (ticket.snow_state === 'exists') {
                 return `
@@ -435,15 +486,9 @@
             }
         }
 
-        // Helper function to build 3-state ALM PAGE HTML cell
         function renderAlmCell(ticket) {
             if (ticket.alm_page_state === 'exists') {
-                return `
-                    <div id="alm-container-${ticket.ticket}">
-                        <a href="${ticket.alm_page_url}" target="_blank" class="confluence-link-success">
-                            View page
-                        </a>
-                    </div>`;
+                return `<div id="alm-container-${ticket.ticket}">${getAlmExistsHtml(ticket.ticket, ticket.alm_page_url)}</div>`;
             } else if (ticket.alm_page_state === 'ready') {
                 return `
                     <div id="alm-container-${ticket.ticket}">
@@ -468,7 +513,6 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 1. Re-render Candidates Tab
                     const candidatesTbody = document.getElementById("candidates-tbody");
                     candidatesTbody.innerHTML = "";
 
@@ -480,7 +524,6 @@
 
                         group.tickets.forEach(ticket => {
                             const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
-                            
                             const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                             const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
                             const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
@@ -512,13 +555,11 @@
                         });
                     });
 
-                    // 2. Re-render Done Tab
                     const doneTbody = document.getElementById("done-tbody");
                     doneTbody.innerHTML = "";
 
                     data.done_tickets.forEach(ticket => {
                         const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
-                        
                         const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                         const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
                         const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
@@ -547,9 +588,8 @@
                                 <td><span class="execution-order">${ticket.execution_order}</span></td>
                                 <td>${ticket.change_hour}</td>
                             </tr>`;
-                    });
+                        });
 
-                    // 3. Update Chart
                     productionChart.data.labels = data.chart_data.labels;
                     productionChart.data.datasets[0].data = data.chart_data.counts;
                     productionChart.update();
@@ -568,7 +608,7 @@
             });
         }
 
-        // Async Confluence Page Creation & Verification
+        // Async Confluence Page Creation
         function createConfluencePage(ticketId) {
             const container = document.getElementById(`alm-container-${ticketId}`);
             if (!container) return;
@@ -584,10 +624,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    container.innerHTML = `
-                        <a href="${data.url}" target="_blank" class="confluence-link-success">
-                            View page
-                        </a>`;
+                    container.innerHTML = getAlmExistsHtml(ticketId, data.url);
                 } else {
                     alert(`Attention: ${data.message}`);
                     container.innerHTML = `
@@ -605,7 +642,44 @@
             });
         }
 
-        // Async ServiceNow Change Request (CHG) Creation & Verification
+        // 🟢 Async Confluence Page Attachment Sync (Update Page Button)
+        function updateConfluencePage(ticketId) {
+            const btn = document.getElementById(`update-alm-btn-${ticketId}`);
+            const icon = document.getElementById(`update-alm-icon-${ticketId}`);
+            if (!btn || !icon) return;
+
+            btn.disabled = true;
+            icon.classList.add("spin-animation");
+
+            fetch(`/update-page/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                icon.classList.remove("spin-animation");
+                if (data.success) {
+                    btn.classList.add("btn-icon-synced");
+                    btn.title = data.message;
+                    setTimeout(() => {
+                        btn.classList.remove("btn-icon-synced");
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    alert(`Update failed: ${data.message}`);
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                icon.classList.remove("spin-animation");
+                btn.disabled = false;
+                alert(`Network error while updating Confluence attachments: ${error}`);
+            });
+        }
+
+        // Async ServiceNow Change Request (CHG) Creation
         function createSnowChange(ticketId) {
             const container = document.getElementById(`snow-container-${ticketId}`);
             if (!container) return;
