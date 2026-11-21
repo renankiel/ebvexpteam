@@ -107,13 +107,19 @@ def publish_to_confluence(ticket_data):
 
 def resolve_confluence_page_id(page_url, ticket_key):
     """
-    Extracts the numeric Confluence pageId from the URL (e.g., /pages/123456/...).
+    Extracts the numeric Confluence pageId from the URL (e.g., /pages/123456/... or viewpage.action?pageId=123456).
     If the URL does not contain the numeric ID, queries Confluence API v2 by title.
     """
     if page_url:
+        # 1. Tenta extrair do formato amigável: /pages/12345678/
         match = re.search(r"/pages/(\d+)", page_url)
         if match:
             return match.group(1)
+        
+        # 2. Tenta extrair de parâmetros clássicos: viewpage.action?pageId=12345678
+        match_param = re.search(r"[?&]pageId=(\d+)", page_url)
+        if match_param:
+            return match_param.group(1)
 
     # Fallback: lookup page by title in Confluence
     expected_title = f"SMT.{CONFLUENCE_SPACE_KEY}.{ticket_key}"
@@ -138,6 +144,8 @@ def resolve_confluence_page_id(page_url, ticket_key):
             return str(results[0].get("id"))
 
     return None
+
+
 
 
 def get_existing_confluence_attachments(page_id):

@@ -529,3 +529,17 @@ body {
         transform: rotate(360deg);
     }
 }
+
+/* --- SIGN-OFF GROUP --- */
+.signoff-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.signoff-group .badge-yn {
+    font-size: 10px;
+    padding: 2px 6px;
+    min-width: 50px;
+    text-align: center;
+}

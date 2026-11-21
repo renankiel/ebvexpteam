@@ -22,7 +22,7 @@ elif os.path.exists(env_path_txt):
 else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
 
-from confluence_publisher import publish_to_confluence, sync_attachments_to_confluence
+from confluence_publisher import publish_to_confluence, sync_attachments_to_confluence, resolve_confluence_page_id
 from servicenow_publisher import create_servicenow_change
 
 app = Flask(__name__)
@@ -34,6 +34,7 @@ JIRA_URL = os.getenv("JIRA_URL")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_TOKEN = os.getenv("JIRA_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
+CONFLUENCE_SPACE_ID = os.getenv("CONFLUENCE_SPACE_ID", "1048580")
 
 STATUS_CANDIDATES = [
     "DEV BACKLOG",
@@ -76,12 +77,11 @@ READY_FOR_PRODUCTION_TICKETS = [
         "pr_to_prod": "20945",
         "pr_validated": "No",
         "pr_validated_lower": "no",
-        "dev_signoff": "Yes",
-        "dev_signoff_lower": "yes",
-        "qa_signoff": "Yes",
-        "qa_signoff_lower": "yes",
-        "uat_signoff": "Yes",
-        "uat_signoff_lower": "yes",
+        "signoffs": {
+            "DEVINT": True,
+            "QA": True,
+            "UAT": True
+        },
         "execution_order": "",
         "change_hour": "12/11 07:00"
     }
@@ -103,6 +103,17 @@ def extract_plain_text_adf(adf_node):
 
     if adf_node.get("type") == "text":
         return adf_node.get("text", "")
+
+    # 🟢 NOVO: Suporte a nós de Data do Jira ADF (Converte timestamp para formato DD/MM)
+    if adf_node.get("type") == "date":
+        timestamp_ms = adf_node.get("attrs", {}).get("timestamp")
+        if timestamp_ms:
+            try:
+                import datetime
+                dt = datetime.datetime.utcfromtimestamp(int(timestamp_ms) / 1000.0)
+                return dt.strftime("%d/%m")
+            except:
+                pass
 
     text_pieces = []
     for child in adf_node.get("content", []):
@@ -214,10 +225,7 @@ def node_contains_media(node):
 
 
 def collect_media_nodes_from_node(node, collected_list):
-    """
-    Recursively collects all 'mediaInline' / 'media' attribute dictionaries
-    inside a given ADF node.
-    """
+    """Recursively collects all 'mediaInline' / 'media' attribute dictionaries inside a given ADF node."""
     if isinstance(node, list):
         for item in node:
             collect_media_nodes_from_node(item, collected_list)
@@ -334,10 +342,7 @@ def check_deployment_results_logs(description_adf):
 
 
 def extract_deployment_results_attachments(issue_raw, description_adf):
-    """
-    Extracts all media files referenced in the 'DEPLOYMENT RESULTS' table
-    and matches them against the Jira issue's attachment list to get their download URLs.
-    """
+    """Extracts all media files referenced in the 'DEPLOYMENT RESULTS' table."""
     table_node = find_panel_table(description_adf, "DEPLOYMENT RESULTS")
     if not table_node:
         return []
@@ -353,7 +358,6 @@ def extract_deployment_results_attachments(issue_raw, description_adf):
         if "tableHeader" in cell_types:
             continue
 
-        # Collect media from the FILE cell (last cell of each row)
         collect_media_nodes_from_node(cells[-1], media_attrs_list)
 
     if not media_attrs_list:
@@ -373,15 +377,12 @@ def extract_deployment_results_attachments(issue_raw, description_adf):
     matched_attachments = []
     seen_filenames = set()
 
-    # 1. Match by 'alt' filename from the ADF mediaInline node
     for m_attr in media_attrs_list:
         alt_name = (m_attr.get("alt") or "").strip()
         if alt_name and alt_name in attachments_by_name and alt_name not in seen_filenames:
             matched_attachments.append(attachments_by_name[alt_name])
             seen_filenames.add(alt_name)
 
-    # 2. Fallback: if mediaInline nodes in Jira ADF did not store 'alt' text (only UUID),
-    # sync all attachments present on the Jira ticket
     if not matched_attachments and issue_attachments:
         for fname, att_info in attachments_by_name.items():
             if fname not in seen_filenames:
@@ -392,7 +393,7 @@ def extract_deployment_results_attachments(issue_raw, description_adf):
 
 
 def inspect_alm_page_status(description_adf):
-    """Inspects 'ALM PAGE' status. Returns ('none', '') | ('ready', '') | ('exists', url)."""
+    """Inspects 'ALM PAGE' status."""
     table_node = find_panel_table(description_adf, "ALM PAGE")
     if not table_node:
         return "none", ""
@@ -408,7 +409,7 @@ def inspect_alm_page_status(description_adf):
 
 
 def inspect_snow_status(description_adf):
-    """Inspects 'SNOW' status. Returns ('none', '', '') | ('ready', '', '') | ('exists', url, display_text)."""
+    """Inspects 'SNOW' status."""
     table_node = find_panel_table(description_adf, "SNOW")
     if not table_node:
         return "none", "", ""
@@ -424,8 +425,178 @@ def inspect_snow_status(description_adf):
     return "ready", "", ""
 
 
+def extract_change_hour_from_snow(description_adf):
+    """
+    Finds the SNOW panel table, extracts the values from the 'DATE' and 'TIME' columns,
+    and returns them formatted as 'DATE TIME'.
+    """
+    table_node = find_panel_table(description_adf, "SNOW")
+    if not table_node:
+        return ""
+
+    rows = table_node.get("content", [])
+    date_col_index = None
+    time_col_index = None
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            for idx, cell in enumerate(cells):
+                header_text = extract_plain_text_adf(cell).upper().strip()
+                if "DATE" in header_text:
+                    date_col_index = idx
+                elif "TIME" in header_text:
+                    time_col_index = idx
+        else:
+            data_rows.append(cells)
+
+    if not data_rows:
+        return ""
+
+    first_data_row = data_rows[0]
+    date_val = ""
+    time_val = ""
+
+    if date_col_index is not None and date_col_index < len(first_data_row):
+        date_val = extract_plain_text_adf(first_data_row[date_col_index]).strip()
+
+    if time_col_index is not None and time_col_index < len(first_data_row):
+        time_val = extract_plain_text_adf(first_data_row[time_col_index]).strip()
+
+    if date_val and time_val:
+        return f"{date_val} {time_val}"
+    elif date_val:
+        return date_val
+    elif time_val:
+        return time_val
+
+    return ""
+
+
+def parse_confluence_approvals(page_id):
+    """
+    Busca o corpo ADF ao vivo da página do Confluence e extrai o status de aprovação
+    pela posição das linhas na coluna STATUS:
+      - 1ª linha de dados: Desconsiderar (Executive)
+      - 2ª linha de dados: UAT
+      - 3ª linha de dados: QA
+      - 4ª linha de dados: DEVINT
+    """
+    statuses = {"DEVINT": False, "QA": False, "UAT": False}
+    if not page_id:
+        return statuses
+
+    try:
+        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+        headers = {"Accept": "application/json"}
+        resp = requests.get(
+            url,
+            params={"body-format": "atlas_doc_format"},
+            headers=headers,
+            auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN),
+            timeout=15
+        )
+
+        if resp.status_code == 200:
+            page_data = resp.json()
+            body_val = page_data.get("body", {}).get("atlas_doc_format", {}).get("value", "")
+
+            adf_body = None
+            if body_val:
+                if isinstance(body_val, str):
+                    try:
+                        adf_body = json.loads(body_val)
+                    except json.JSONDecodeError:
+                        adf_body = None
+                else:
+                    adf_body = body_val
+
+            if isinstance(adf_body, dict):
+                # 1. Localiza todas as tabelas no ADF
+                tables = []
+                def find_tables(node):
+                    if isinstance(node, list):
+                        for item in node:
+                            find_tables(item)
+                    elif isinstance(node, dict):
+                        if node.get("type") == "table":
+                            tables.append(node)
+                        for child in node.get("content", []):
+                            find_tables(child)
+
+                find_tables(adf_body)
+
+                # 2. Função auxiliar para verificar se a célula possui taskItem marcado como 'DONE'
+                def is_cell_approved(cell_node):
+                    approved = False
+                    def check_task(n):
+                        nonlocal approved
+                        if isinstance(n, list):
+                            for item in n:
+                                check_task(item)
+                        elif isinstance(n, dict):
+                            if n.get("type") == "taskItem":
+                                if n.get("attrs", {}).get("state") == "DONE":
+                                    approved = True
+                            for child in n.get("content", []):
+                                check_task(child)
+                    check_task(cell_node)
+                    return approved
+
+                # 3. Percorre as tabelas procurando a coluna STATUS
+                for table in tables:
+                    rows = table.get("content", [])
+                    status_col_idx = None
+                    data_rows = []
+
+                    for row in rows:
+                        if not isinstance(row, dict) or row.get("type") != "tableRow":
+                            continue
+                        cells = row.get("content", [])
+                        if not cells:
+                            continue
+
+                        # Extrai o texto limpo de cada célula da linha para achar a coluna STATUS
+                        row_texts = [extract_plain_text_adf(c).upper().strip() for c in cells]
+                        if "STATUS" in row_texts:
+                            status_col_idx = row_texts.index("STATUS")
+                        else:
+                            data_rows.append(cells)
+
+                    # Se encontrou a tabela que contém a coluna STATUS
+                    if status_col_idx is not None and data_rows:
+                        # Regra 1: 1ª linha de dados (Índice 0 - Executive) -> Desconsiderar
+
+                        # Regra 2: 2ª linha de dados (Índice 1) -> UAT
+                        if len(data_rows) > 1 and len(data_rows[1]) > status_col_idx:
+                            statuses["UAT"] = is_cell_approved(data_rows[1][status_col_idx])
+
+                        # Regra 3: 3ª linha de dados (Índice 2) -> QA
+                        if len(data_rows) > 2 and len(data_rows[2]) > status_col_idx:
+                            statuses["QA"] = is_cell_approved(data_rows[2][status_col_idx])
+
+                        # Regra 4: 4ª linha de dados (Índice 3) -> DEVINT
+                        if len(data_rows) > 3 and len(data_rows[3]) > status_col_idx:
+                            statuses["DEVINT"] = is_cell_approved(data_rows[3][status_col_idx])
+
+                        break
+
+    except Exception as e:
+        print(f"⚠️ Error parsing live Confluence approvals: {e}")
+
+    return statuses
+
+
 def update_panel_table_link_adf(adf_description, panel_keyword, new_url, display_text=None):
-    """Updates the LINK cell of the specified Info Panel's table."""
+    """Updates the LINK cell of the table following the Info Panel."""
     table_node = find_panel_table(adf_description, panel_keyword)
     if not table_node:
         return False
@@ -540,6 +711,7 @@ def fetch_jira_data():
             labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
+            # MANUAL? Label Evaluation
             has_pull_request = "pull-request" in labels_lower
             has_manually = "manually" in labels_lower
 
@@ -573,6 +745,13 @@ def fetch_jira_data():
             alm_state, alm_url = inspect_alm_page_status(description_adf)
             snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
 
+            # Resolve Confluence approvals in real-time if ALM Page exists
+            signoff_statuses = {"DEVINT": False, "QA": False, "UAT": False}
+            if alm_state == "exists":
+                confluence_page_id = resolve_confluence_page_id(alm_url, issue.key)
+                if confluence_page_id:
+                    signoff_statuses = parse_confluence_approvals(confluence_page_id)
+
             ticket_obj = {
                 "snow_state": snow_state,
                 "snow_url": snow_url,
@@ -596,14 +775,9 @@ def fetch_jira_data():
                 "pr_to_prod": pr_to_prod_val,
                 "pr_validated": pr_validated_val,
                 "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
-                "dev_signoff": "Yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "No",
-                "dev_signoff_lower": "yes" if current_status in ["DEV COMPLETE", "READY FOR TEST", "IN TEST", "DONE"] else "no",
-                "qa_signoff": "Yes" if current_status == "DONE" else "No",
-                "qa_signoff_lower": "yes" if current_status == "DONE" else "no",
-                "uat_signoff": "Yes" if current_status == "DONE" else "No",
-                "uat_signoff_lower": "yes" if current_status == "DONE" else "no",
+                "signoffs": signoff_statuses,  # 🟢 Passed as a structured dict
                 "execution_order": "",
-                "change_hour": ""
+                "change_hour": extract_change_hour_from_snow(description_adf)
             }
 
             if current_status == "DONE":
@@ -746,14 +920,8 @@ def publish_page(ticket_id):
         return jsonify({"success": False, "message": str(e)})
 
 
-# 🟢 NEW ENDPOINT: SYNC DEPLOYMENT RESULTS ATTACHMENTS TO CONFLUENCE PAGE
 @app.route("/update-page/<ticket_id>", methods=["POST"])
 def update_page(ticket_id):
-    """
-    1. Verifies that the ticket's Confluence ALM Page already exists.
-    2. Extracts all media files from the 'DEPLOYMENT RESULTS' table in Jira.
-    3. Deletes any existing file with the same name on Confluence and uploads the new one.
-    """
     try:
         jira = JIRA(
             server=JIRA_URL,

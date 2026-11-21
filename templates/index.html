@@ -18,7 +18,7 @@
                     <p class="subtitle">Amber Customer Experience Integrations</p>
                 </div>
             </div>
-            <!-- Global AJAX Refresh Button -->
+            <!-- Global AJAX Refresh Button inside Header (Right Aligned) -->
             <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-confluence">
                 <span id="refresh-icon">🔄</span> Refresh Board
             </button>
@@ -62,9 +62,7 @@
                             <th>Logs?</th>
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
-                            <th>DEV Signoff?</th>
-                            <th>QA Signoff?</th>
-                            <th>UAT Signoff?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified Column Header -->
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
@@ -72,7 +70,7 @@
                     <tbody id="candidates-tbody">
                         {% for group in candidates %}
                             <tr class="version-row">
-                                <td colspan="16">{{ group.version }}</td>
+                                <td colspan="14">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
@@ -88,7 +86,7 @@
                                                     Create SNOW
                                                 </button>
                                             {% else %}
-                                                <span class="no-panel-text" title="No SNOW Info Panel or Table in description">—</span>
+                                                <span class="no-panel-text" title="No SNOW Info Panel in description">—</span>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -133,7 +131,6 @@
                                             {{ ticket.assignee }}
                                         </div>
                                     </td>
-
                                     <td>
                                         {% if ticket.manual == 'Yes' %}
                                             <span class="badge-yn yes">Yes</span>
@@ -143,7 +140,6 @@
                                             <span class="no-panel-text">—</span>
                                         {% endif %}
                                     </td>
-
                                     <td>
                                         {% if ticket.logs == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -151,7 +147,6 @@
                                             <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                         {% endif %}
                                     </td>
-
                                     <td>
                                         {% if ticket.pr_to_prod == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -159,7 +154,6 @@
                                             <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                         {% endif %}
                                     </td>
-
                                     <td>
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -167,10 +161,16 @@
                                             <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                         {% endif %}
                                     </td>
+                                    
+                                    <!-- 🟢 Unified SIGNOFF Column -->
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                            <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                            <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                        </div>
+                                    </td>
 
-                                    <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
-                                    <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
-                                    <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
                                     <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                     <td>{{ ticket.change_hour }}</td>
                                 </tr>
@@ -199,9 +199,7 @@
                             <th>Logs?</th>
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
-                            <th>DEV Signoff?</th>
-                            <th>QA Signoff?</th>
-                            <th>UAT Signoff?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified -->
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
@@ -291,9 +289,16 @@
                                         <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                     {% endif %}
                                 </td>
-                                <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
+                                
+                                <!-- 🟢 Unified SIGNOFF Column -->
+                                <td>
+                                    <div class="signoff-group">
+                                        <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                        <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                        <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                    </div>
+                                </td>
+
                                 <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                 <td>{{ ticket.change_hour }}</td>
                             </tr>
@@ -321,9 +326,7 @@
                             <th>Logs?</th>
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
-                            <th>DEV Signoff?</th>
-                            <th>QA Signoff?</th>
-                            <th>UAT Signoff?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified -->
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
@@ -413,9 +416,16 @@
                                         <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                     {% endif %}
                                 </td>
-                                <td><span class="badge-yn {{ ticket.dev_signoff_lower }}">{{ ticket.dev_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.qa_signoff_lower }}">{{ ticket.qa_signoff }}</span></td>
-                                <td><span class="badge-yn {{ ticket.uat_signoff_lower }}">{{ ticket.uat_signoff }}</span></td>
+                                
+                                <!-- 🟢 Unified SIGNOFF Column -->
+                                <td>
+                                    <div class="signoff-group">
+                                        <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                        <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                        <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                    </div>
+                                </td>
+
                                 <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                 <td>{{ ticket.change_hour }}</td>
                             </tr>
@@ -447,7 +457,7 @@
         }
 
         // Reusable SVG Icons for View Page & Update Page
-        function getAlmExistsHtml(ticketId, pageUrl) {
+        function getAlmExistsHtml(ticketId, pageUrl, devSign, qaSign, uatSign) {
             return `
                 <div class="alm-action-group">
                     <a href="${pageUrl}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
@@ -501,7 +511,7 @@
             }
         }
 
-        // ASYNCHRONOUS GLOBAL REFRESH FUNCTION
+        // 🟢 ASYNCHRONOUS GLOBAL REFRESH FUNCTION
         function refreshBoardData() {
             const refreshBtn = document.getElementById("global-refresh-btn");
             const refreshIcon = document.getElementById("refresh-icon");
@@ -513,13 +523,14 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // 1. Re-render Candidates Tab
                     const candidatesTbody = document.getElementById("candidates-tbody");
                     candidatesTbody.innerHTML = "";
 
                     data.candidates.forEach(group => {
                         candidatesTbody.innerHTML += `
                             <tr class="version-row">
-                                <td colspan="16">${group.version}</td>
+                                <td colspan="14">${group.version}</td>
                             </tr>`;
 
                         group.tickets.forEach(ticket => {
@@ -527,6 +538,10 @@
                             const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                             const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
                             const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                            const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                            const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                            const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
 
                             candidatesTbody.innerHTML += `
                                 <tr>
@@ -546,15 +561,20 @@
                                     <td>${logsBadge}</td>
                                     <td>${prProdBadge}</td>
                                     <td>${prValidatedBadge}</td>
-                                    <td><span class="badge-yn ${ticket.dev_signoff_lower}">${ticket.dev_signoff}</span></td>
-                                    <td><span class="badge-yn ${ticket.qa_signoff_lower}">${ticket.qa_signoff}</span></td>
-                                    <td><span class="badge-yn ${ticket.uat_signoff_lower}">${ticket.uat_signoff}</span></td>
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                            <span class="badge-yn ${qaSignClass}">QA</span>
+                                            <span class="badge-yn ${uatSignClass}">UAT</span>
+                                        </div>
+                                    </td>
                                     <td><span class="execution-order">${ticket.execution_order}</span></td>
                                     <td>${ticket.change_hour}</td>
                                 </tr>`;
                         });
                     });
 
+                    // 2. Re-render Done Tab
                     const doneTbody = document.getElementById("done-tbody");
                     doneTbody.innerHTML = "";
 
@@ -563,6 +583,10 @@
                         const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                         const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
                         const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                        const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                        const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                        const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
 
                         doneTbody.innerHTML += `
                             <tr>
@@ -582,14 +606,19 @@
                                 <td>${logsBadge}</td>
                                 <td>${prProdBadge}</td>
                                 <td>${prValidatedBadge}</td>
-                                <td><span class="badge-yn ${ticket.dev_signoff_lower}">${ticket.dev_signoff}</span></td>
-                                <td><span class="badge-yn ${ticket.qa_signoff_lower}">${ticket.qa_signoff}</span></td>
-                                <td><span class="badge-yn ${ticket.uat_signoff_lower}">${ticket.uat_signoff}</span></td>
+                                <td>
+                                    <div class="signoff-group">
+                                        <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                        <span class="badge-yn ${qaSignClass}">QA</span>
+                                        <span class="badge-yn ${uatSignClass}">UAT</span>
+                                    </div>
+                                </td>
                                 <td><span class="execution-order">${ticket.execution_order}</span></td>
                                 <td>${ticket.change_hour}</td>
                             </tr>`;
-                        });
+                    });
 
+                    // 3. Update Chart
                     productionChart.data.labels = data.chart_data.labels;
                     productionChart.data.datasets[0].data = data.chart_data.counts;
                     productionChart.update();
@@ -642,7 +671,7 @@
             });
         }
 
-        // 🟢 Async Confluence Page Attachment Sync (Update Page Button)
+        // Async Confluence Page Attachment Sync (Update Page Button)
         function updateConfluencePage(ticketId) {
             const btn = document.getElementById(`update-alm-btn-${ticketId}`);
             const icon = document.getElementById(`update-alm-icon-${ticketId}`);
