@@ -678,19 +678,76 @@ def update_jira_description_adf(ticket_id, updated_adf):
         return False, f"Failed to update Jira (Status {response.status_code}): {response.text}"
 
 
+def find_sprint_field_key(issue_fields):
+    """
+    Detecta dinamicamente qual campo customfield_XXXX representa o campo de Sprint do Jira.
+    """
+    for key, value in issue_fields.items():
+        if key.startswith("customfield_") and isinstance(value, list) and len(value) > 0:
+            first_val = value[0]
+            if isinstance(first_val, str) and "com.atlassian.greenhopper.service.sprint.Sprint" in first_val:
+                return key
+            if hasattr(first_val, "id") and hasattr(first_val, "name") and ("sprint" in str(type(first_val)).lower() or "sprint" in str(first_val.__class__).lower()):
+                return key
+            if isinstance(first_val, dict) and "id" in first_val and "name" in first_val:
+                return key
+    return None
+
+
+def extract_sprints(sprint_field):
+    """
+    Extrai uma lista de dicionários contendo ID e Nome de todas as Sprints que o ticket possui.
+    """
+    if not sprint_field:
+        return []
+    
+    sprints = []
+    for item in sprint_field:
+        if isinstance(item, str):
+            # Parse do formato de string clássica do Greenhopper
+            import re
+            id_match = re.search(r"id=(\d+)", item)
+            name_match = re.search(r"name=([^,\]]+)", item)
+            if id_match and name_match:
+                try:
+                    sprints.append({
+                        "id": int(id_match.group(1)),
+                        "name": name_match.group(1).strip()
+                    })
+                except ValueError:
+                    pass
+        elif hasattr(item, "id") and hasattr(item, "name"):
+            try:
+                sprints.append({
+                    "id": int(item.id),
+                    "name": item.name
+                })
+            except (ValueError, TypeError):
+                pass
+        elif isinstance(item, dict):
+            try:
+                sprints.append({
+                    "id": int(item.get("id")),
+                    "name": item.get("name")
+                })
+            except (ValueError, TypeError):
+                pass
+    return sprints
+
+
 # =====================================================================
 # 🔄 JIRA REST API v3 INTEGRATION
 # =====================================================================
 def fetch_jira_data():
     candidates_groups = {}
     done_list = []
-    ready_prod_list = []  # 🟢 Lista dinâmica para Ready for Production
+    ready_prod_list = []
 
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_TOKEN or not JIRA_PROJECT_KEY:
         print("⚠️ Error: Jira credentials missing or incomplete in .env!")
         error_group = [
             {
-                "version": "⚠️ Error: Jira credentials missing/incomplete in .env!",
+                "version": f"{JIRA_PROJECT_KEY or 'CRMB2B'} - No Version Defined",
                 "tickets": []
             }
         ]
@@ -706,7 +763,20 @@ def fetch_jira_data():
         jql_query = f'project = "{JIRA_PROJECT_KEY}" ORDER BY created DESC'
         issues = jira.search_issues(jql_query, maxResults=100)
 
+        # Descoberta dinâmica do ID do campo Sprint
+        sprint_field_key = None
         for issue in issues:
+            sprint_field_key = find_sprint_field_key(issue.raw.get("fields", {}))
+            if sprint_field_key:
+                break
+
+        for issue in issues:
+            # 🟢 REGRA 1: Só mostrar tickets que contenham a Label "BVISTA"
+            labels = issue.fields.labels or []
+            labels_upper = [lbl.upper() for lbl in labels]
+            if "BVISTA" not in labels_upper:
+                continue  # Desconsidera o ticket se não tiver a label BVISTA
+
             current_status = issue.fields.status.name.upper()
 
             native_type = issue.fields.issuetype.name
@@ -718,10 +788,9 @@ def fetch_jira_data():
                 else "Unassigned"
             )
 
-            labels_lower = [lbl.lower() for lbl in (issue.fields.labels or [])]
+            labels_lower = [lbl.lower() for lbl in labels]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
-            # MANUAL? Label Evaluation
             has_pull_request = "pull-request" in labels_lower
             has_manually = "manually" in labels_lower
 
@@ -752,10 +821,22 @@ def fetch_jira_data():
                 pr_to_prod_val = prd_pr
                 pr_validated_val = "Yes" if prd_pr else "No"
 
+            # 🟢 REGRA 3: Extrair e processar Sprints (Pegando sempre a mais antiga)
+            sprint_raw = issue.raw.get("fields", {}).get(sprint_field_key) if sprint_field_key else None
+            sprints_list = extract_sprints(sprint_raw)
+
+            sprint_name = f"{JIRA_PROJECT_KEY} - No Version Defined"
+            oldest_sprint_id = 999999999  # Sem sprint vai para o fim da fila
+
+            if sprints_list:
+                # Escolhe a sprint com menor ID (a mais antiga)
+                oldest_sprint = min(sprints_list, key=lambda x: x["id"])
+                sprint_name = oldest_sprint["name"]
+                oldest_sprint_id = oldest_sprint["id"]
+
             alm_state, alm_url = inspect_alm_page_status(description_adf)
             snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
 
-            # Resolve Confluence approvals in real-time if ALM Page exists
             signoff_statuses = {"DEVINT": False, "QA": False, "UAT": False}
             if alm_state == "exists":
                 confluence_page_id = resolve_confluence_page_id(alm_url, issue.key)
@@ -787,32 +868,35 @@ def fetch_jira_data():
                 "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
                 "signoffs": signoff_statuses,
                 "execution_order": "",
-                "change_hour": extract_change_hour_from_snow(description_adf)
+                "change_hour": extract_change_hour_from_snow(description_adf),
+                "sprint_id": oldest_sprint_id  # Guardamos o ID numérico para ordenação
             }
 
             if current_status == "DONE":
                 done_list.append(ticket_obj)
             elif current_status == "READY FOR PRODUCTION":
-                ready_prod_list.append(ticket_obj)  # 🟢 Direciona para a lista do Ready for Production
+                ready_prod_list.append(ticket_obj)
             else:
-                if issue.fields.fixVersions:
-                    version_name = issue.fields.fixVersions[0].name
-                else:
-                    version_name = f"{JIRA_PROJECT_KEY} - No Version Defined"
+                # Agrupa por Nome da Sprint
+                if sprint_name not in candidates_groups:
+                    candidates_groups[sprint_name] = []
+                candidates_groups[sprint_name].append(ticket_obj)
 
-                if version_name not in candidates_groups:
-                    candidates_groups[version_name] = []
-                candidates_groups[version_name].append(ticket_obj)
+        # 🟢 REGRA 2: Ordenar as Sprints da mais antiga (menor ID) para a mais nova (maior ID)
+        sorted_group_names = sorted(
+            candidates_groups.keys(),
+            key=lambda name: min(t["sprint_id"] for t in candidates_groups[name])
+        )
 
         formatted_candidates = [
-            {"version": version, "tickets": tickets}
-            for version, tickets in candidates_groups.items()
+            {"version": name, "tickets": candidates_groups[name]}
+            for name in sorted_group_names
         ]
 
         if not formatted_candidates:
             formatted_candidates = [
                 {
-                    "version": f"No pending issues found in project {JIRA_PROJECT_KEY}",
+                    "version": f"{JIRA_PROJECT_KEY} - No Version Defined",
                     "tickets": []
                 }
             ]
@@ -823,7 +907,7 @@ def fetch_jira_data():
         print(f"⚠️ Error connecting to Jira API: {error}")
         error_group = [
             {
-                "version": f"⚠️ Jira connection error: {error}",
+                "version": f"{JIRA_PROJECT_KEY or 'CRMB2B'} - No Version Defined",
                 "tickets": []
             }
         ]
