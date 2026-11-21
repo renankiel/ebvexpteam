@@ -574,6 +574,52 @@
                         });
                     });
 
+                    // 1.5 Re-render Ready for Production Tab Dinamicamente
+                    const readyProdTbody = document.getElementById("ready-prod-tbody");
+                    if (readyProdTbody) {
+                        readyProdTbody.innerHTML = "";
+
+                        data.ready_prod_tickets.forEach(ticket => {
+                            const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                            const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                            const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                            const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                            const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                            const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
+
+                            readyProdTbody.innerHTML += `
+                                <tr>
+                                    <td>${renderSnowCell(ticket)}</td>
+                                    <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                    <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                    <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                    <td><span class="badge-status status-ready-for-production">${ticket.status}</span></td>
+                                    <td>${renderAlmCell(ticket)}</td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                            ${ticket.assignee}
+                                        </div>
+                                    </td>
+                                    <td>${manualBadge}</td>
+                                    <td>${logsBadge}</td>
+                                    <td>${prProdBadge}</td>
+                                    <td>${prValidatedBadge}</td>
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                            <span class="badge-yn ${qaSignClass}">QA</span>
+                                            <span class="badge-yn ${uatSignClass}">UAT</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                    <td>${ticket.change_hour}</td>
+                                </tr>`;
+                        });
+                    }
+
                     // 2. Re-render Done Tab
                     const doneTbody = document.getElementById("done-tbody");
                     doneTbody.innerHTML = "";

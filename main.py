@@ -684,6 +684,7 @@ def update_jira_description_adf(ticket_id, updated_adf):
 def fetch_jira_data():
     candidates_groups = {}
     done_list = []
+    ready_prod_list = []  # 🟢 Lista dinâmica para Ready for Production
 
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_TOKEN or not JIRA_PROJECT_KEY:
         print("⚠️ Error: Jira credentials missing or incomplete in .env!")
@@ -693,7 +694,7 @@ def fetch_jira_data():
                 "tickets": []
             }
         ]
-        return error_group, []
+        return error_group, [], []
 
     try:
         jira = JIRA(
@@ -784,13 +785,15 @@ def fetch_jira_data():
                 "pr_to_prod": pr_to_prod_val,
                 "pr_validated": pr_validated_val,
                 "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
-                "signoffs": signoff_statuses,  # 🟢 Passed as a structured dict
+                "signoffs": signoff_statuses,
                 "execution_order": "",
                 "change_hour": extract_change_hour_from_snow(description_adf)
             }
 
             if current_status == "DONE":
                 done_list.append(ticket_obj)
+            elif current_status == "READY FOR PRODUCTION":
+                ready_prod_list.append(ticket_obj)  # 🟢 Direciona para a lista do Ready for Production
             else:
                 if issue.fields.fixVersions:
                     version_name = issue.fields.fixVersions[0].name
@@ -814,7 +817,7 @@ def fetch_jira_data():
                 }
             ]
 
-        return formatted_candidates, done_list
+        return formatted_candidates, done_list, ready_prod_list
 
     except Exception as error:
         print(f"⚠️ Error connecting to Jira API: {error}")
@@ -824,7 +827,7 @@ def fetch_jira_data():
                 "tickets": []
             }
         ]
-        return error_group, []
+        return error_group, [], []
 
 
 # =====================================================================
@@ -832,12 +835,12 @@ def fetch_jira_data():
 # =====================================================================
 @app.route("/")
 def home():
-    candidates_data, done_data = fetch_jira_data()
+    candidates_data, done_data, ready_prod_data = fetch_jira_data()  # 🟢 Atualizado
 
     return render_template(
         "index.html",
         candidates=candidates_data,
-        ready_prod_tickets=READY_FOR_PRODUCTION_TICKETS,
+        ready_prod_tickets=ready_prod_data,  # 🟢 Passando dinamicamente do Jira
         done_tickets=done_data,
         chart_data=CHART_DATA,
         jira_url=JIRA_URL or "https://atlassian.net"
@@ -846,13 +849,15 @@ def home():
 
 @app.route("/api/refresh", methods=["GET"])
 def api_refresh():
-    candidates_data, done_data = fetch_jira_data()
+    candidates_data, done_data, ready_prod_data = fetch_jira_data()  # 🟢 Atualizado
     return jsonify({
         "success": True,
         "candidates": candidates_data,
+        "ready_prod_tickets": ready_prod_data,  # 🟢 Retornando dinamicamente para o JS
         "done_tickets": done_data,
         "chart_data": CHART_DATA
     })
+
 
 
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
