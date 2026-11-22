@@ -22,7 +22,12 @@ elif os.path.exists(env_path_txt):
 else:
     print(f"❌ WARNING: No .env or .env.txt found in: {BASE_DIR}")
 
-from confluence_publisher import publish_to_confluence, sync_attachments_to_confluence, resolve_confluence_page_id
+from confluence_publisher import (
+    publish_to_confluence,
+    sync_attachments_to_confluence,
+    resolve_confluence_page_id,
+    get_existing_confluence_attachments
+)
 from servicenow_publisher import create_servicenow_change
 
 app = Flask(__name__)
@@ -735,6 +740,59 @@ def extract_sprints(sprint_field):
     return sprints
 
 
+def check_double_attachments(issue_raw, description_adf, alm_state, alm_url, issue_key):
+    """
+    Realiza a checagem dupla dos anexos:
+    1. Verifica se todos os arquivos referenciados no ADF existem anexados no Jira.
+    2. Verifica se esses mesmos arquivos já foram enviados e existem no Confluence.
+    """
+    table_node = find_panel_table(description_adf, "DEPLOYMENT RESULTS")
+    if not table_node:
+        return "No"
+
+    # Encontra todos os nós de media referenciados na tabela do ADF
+    media_attrs_list = []
+    for row in table_node.get("content", []):
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+        cells = row.get("content", [])
+        if not cells:
+            continue
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            continue
+        collect_media_nodes_from_node(cells[-1], media_attrs_list)
+
+    if not media_attrs_list:
+        return "No"
+
+    # Obtém os anexos válidos correspondidos no Jira
+    jira_attachments = extract_deployment_results_attachments(issue_raw, description_adf)
+    
+    # 1. Se o número de anexos válidos no Jira for menor que o referenciado, faltam arquivos no Jira
+    if len(jira_attachments) < len(media_attrs_list):
+        return "No"
+
+    # 2. Se a página do Confluence não existe ou não pôde ser resolvida, é "No" (pois os logs ainda não estão lá)
+    if alm_state != "exists" or not alm_url:
+        return "No"
+
+    confluence_page_id = resolve_confluence_page_id(alm_url, issue_key)
+    if not confluence_page_id:
+        return "No"
+
+    # Obtém a lista real de anexos da página do Confluence
+    confluence_attachments = get_existing_confluence_attachments(confluence_page_id)
+
+    # 3. Verifica se cada anexo do Jira existe no Confluence com o mesmo nome de arquivo
+    for att in jira_attachments:
+        filename = att.get("filename")
+        if not filename or filename not in confluence_attachments:
+            return "No"
+
+    return "Yes"
+
+
 # =====================================================================
 # 🔄 JIRA REST API v3 INTEGRATION
 # =====================================================================
@@ -771,13 +829,16 @@ def fetch_jira_data():
                 break
 
         for issue in issues:
-            # 🟢 REGRA 1: Só mostrar tickets que contenham a Label "BVISTA"
+            # 1. Filtro da Label "BVISTA"
             labels = issue.fields.labels or []
             labels_upper = [lbl.upper() for lbl in labels]
             if "BVISTA" not in labels_upper:
-                continue  # Desconsidera o ticket se não tiver a label BVISTA
+                continue  # Pula o ticket se não tiver a label BVISTA
 
             current_status = issue.fields.status.name.upper()
+            
+            # 🟢 CORREÇÃO: Declarada aqui no início para ser usada por todas as outras funções do loop
+            description_adf = issue.raw.get("fields", {}).get("description")
 
             native_type = issue.fields.issuetype.name
             formatted_type = TYPE_TRANSLATION.get(native_type.lower(), native_type)
@@ -791,6 +852,7 @@ def fetch_jira_data():
             labels_lower = [lbl.lower() for lbl in labels]
             cloud_val = "Service" if "service" in labels_lower else "Sales"
 
+            # 2. Avaliação das Labels e modo manual
             has_pull_request = "pull-request" in labels_lower
             has_manually = "manually" in labels_lower
 
@@ -801,8 +863,6 @@ def fetch_jira_data():
             else:
                 manual_val = "—"
 
-            description_adf = issue.raw.get("fields", {}).get("description")
-
             readable_description = (
                 extract_plain_text_adf(description_adf)
                 if description_adf
@@ -810,7 +870,12 @@ def fetch_jira_data():
             )
 
             prd_pr = extract_prd_pr_adf(description_adf)
-            logs_status = check_deployment_results_logs(description_adf)
+
+            # 3. Carrega os estados da página do Confluence ALM
+            alm_state, alm_url = inspect_alm_page_status(description_adf)
+
+            # 4. Checagem dupla de LOGS (Jira <-> Confluence)
+            logs_status = check_double_attachments(issue.raw, description_adf, alm_state, alm_url, issue.key)
 
             if manual_val == "Yes":
                 logs_val = "N/A"
@@ -821,7 +886,9 @@ def fetch_jira_data():
                 pr_to_prod_val = prd_pr
                 pr_validated_val = "Yes" if prd_pr else "No"
 
-            # 🟢 REGRA 3: Extrair e processar Sprints (Pegando sempre a mais antiga)
+            # 5. Carrega o estado do painel SNOW e extrai Sprints do Jira
+            snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
+
             sprint_raw = issue.raw.get("fields", {}).get(sprint_field_key) if sprint_field_key else None
             sprints_list = extract_sprints(sprint_raw)
 
@@ -829,14 +896,11 @@ def fetch_jira_data():
             oldest_sprint_id = 999999999  # Sem sprint vai para o fim da fila
 
             if sprints_list:
-                # Escolhe a sprint com menor ID (a mais antiga)
                 oldest_sprint = min(sprints_list, key=lambda x: x["id"])
                 sprint_name = oldest_sprint["name"]
                 oldest_sprint_id = oldest_sprint["id"]
 
-            alm_state, alm_url = inspect_alm_page_status(description_adf)
-            snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
-
+            # 6. Resolve Confluence approvals em tempo real se a página existir
             signoff_statuses = {"DEVINT": False, "QA": False, "UAT": False}
             if alm_state == "exists":
                 confluence_page_id = resolve_confluence_page_id(alm_url, issue.key)
@@ -869,7 +933,7 @@ def fetch_jira_data():
                 "signoffs": signoff_statuses,
                 "execution_order": "",
                 "change_hour": extract_change_hour_from_snow(description_adf),
-                "sprint_id": oldest_sprint_id  # Guardamos o ID numérico para ordenação
+                "sprint_id": oldest_sprint_id
             }
 
             if current_status == "DONE":
@@ -877,12 +941,11 @@ def fetch_jira_data():
             elif current_status == "READY FOR PRODUCTION":
                 ready_prod_list.append(ticket_obj)
             else:
-                # Agrupa por Nome da Sprint
                 if sprint_name not in candidates_groups:
                     candidates_groups[sprint_name] = []
                 candidates_groups[sprint_name].append(ticket_obj)
 
-        # 🟢 REGRA 2: Ordenar as Sprints da mais antiga (menor ID) para a mais nova (maior ID)
+        # Ordena as Sprints da mais antiga para a mais nova
         sorted_group_names = sorted(
             candidates_groups.keys(),
             key=lambda name: min(t["sprint_id"] for t in candidates_groups[name])
