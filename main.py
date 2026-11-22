@@ -485,6 +485,47 @@ def extract_change_hour_from_snow(description_adf):
 
     return ""
 
+def extract_execution_order_from_snow(description_adf):
+    """
+    Localiza a tabela abaixo do Info Panel 'SNOW', busca a coluna 'ORDER'
+    e retorna o valor contido nela.
+    """
+    table_node = find_panel_table(description_adf, "SNOW")
+    if not table_node:
+        return ""
+
+    rows = table_node.get("content", [])
+    order_col_index = None
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            for idx, cell in enumerate(cells):
+                header_text = extract_plain_text_adf(cell).upper().strip()
+                # Procura por qualquer variação de "ORDER" ou "EXECUTION ORDER"
+                if "ORDER" in header_text:
+                    order_col_index = idx
+                    break
+        else:
+            data_rows.append(cells)
+
+    if not data_rows or order_col_index is None:
+        return ""
+
+    first_data_row = data_rows[0]
+    if order_col_index < len(first_data_row):
+        return extract_plain_text_adf(first_data_row[order_col_index]).strip()
+
+    return ""
+
 
 def parse_confluence_approvals(page_id):
     """
@@ -931,7 +972,7 @@ def fetch_jira_data():
                 "pr_validated": pr_validated_val,
                 "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
                 "signoffs": signoff_statuses,
-                "execution_order": "",
+                "execution_order": extract_execution_order_from_snow(description_adf),
                 "change_hour": extract_change_hour_from_snow(description_adf),
                 "sprint_id": oldest_sprint_id
             }
