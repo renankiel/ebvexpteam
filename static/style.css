@@ -1,6 +1,5 @@
 /* =====================================================================
-   JIRA FULL DARK THEME - COMPLETE STYLESHEET
-   Based on mellertson/Jira-Full-Dark-CSS-Theme (jira-full-dark.css)
+   MONDAY.COM CARBON/BLACK THEME - COMPLETE STYLE SHEET
    ===================================================================== */
 
    * {
@@ -15,51 +14,49 @@
 
 html,
 body {
-    background-color: #202020 !important;
-    color: #FAFBFC;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    background-color: #111213 !important; /* Preto carbono profundo */
+    color: #c5c7d0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 13px;
-    line-height: 1.42857143;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 
 /* --- CUSTOM SCROLLBARS --- */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #111213;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 0px;
+    background: #2d3135;
+    border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
-}
-
-::-webkit-scrollbar-thumb:active {
-    background: rgba(255, 255, 255, 0.5);
+    background: #3e434a;
 }
 
 /* --- MAIN LAYOUT CONTAINER --- */
 .jira-container {
     max-width: 100%;
     min-height: 100vh;
-    background-color: #303030;
-    padding: 20px 28px;
+    background-color: #18191b; /* Cinza escuro profundo da Monday */
+    padding: 24px 32px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
 /* --- HEADER --- */
 .jira-header {
-    background-color: #303030;
-    border-bottom: 3px solid #0747A659;
-    padding-bottom: 16px;
-    margin-bottom: 20px;
+    background-color: transparent;
+    border-bottom: 1px solid #2d3135;
+    padding-bottom: 20px;
+    margin-bottom: 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -68,64 +65,66 @@ body {
 .project-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
 
 .project-avatar {
-    width: 40px;
-    height: 40px;
-    background-color: #0747A6;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #00c875, #0086f0);
     color: #ffffff;
-    border-radius: 3px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .jira-header h1 {
-    color: #FAFBFC !important;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    color: #ffffff !important;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
 }
 
 .subtitle {
-    color: #999999;
-    font-size: 12px;
-    margin-top: 2px;
+    color: #808290;
+    font-size: 13px;
+    margin-top: 4px;
 }
 
 /* --- HORIZONTAL TABS --- */
 .tabs {
     display: flex;
-    gap: 4px;
-    border-bottom: 1px solid #404040;
-    margin-bottom: 20px;
-    background-color: #303030;
+    gap: 8px;
+    border-bottom: 1px solid #2d3135;
+    margin-bottom: 24px;
+    background-color: transparent;
 }
 
 .tab-button {
-    background: #404040;
-    color: #999999;
+    background: transparent;
+    color: #808290;
     border: none;
     border-bottom: 3px solid transparent;
-    padding: 10px 18px;
-    font-size: 13px;
-    font-weight: 600;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: all 0.2s ease;
 }
 
 .tab-button:hover {
-    background-color: #202020;
-    color: #FAFBFC;
+    color: #ffffff;
+    background-color: #202226;
+    border-radius: 4px 4px 0 0;
 }
 
 .tab-button.active {
-    background-color: #202020;
-    color: #deebff;
-    border-bottom: 3px solid #0747A6;
+    color: #0086f0;
+    border-bottom: 3px solid #0086f0;
+    font-weight: 600;
 }
 
 .tab-content {
@@ -140,118 +139,128 @@ body {
 .metrics-section {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 24px;
     margin-bottom: 24px;
 }
 
 .metric-card {
-    background-color: #202020;
-    border: 1px solid #404040;
-    padding: 20px;
+    background-color: #1c1d1f;
+    border: 1px solid #2d3135;
+    border-radius: 8px;
+    padding: 24px;
 }
 
 .metric-card h3 {
-    color: #FAFBFC !important;
-    font-size: 15px;
+    color: #ffffff !important;
+    font-size: 16px;
     font-weight: 600;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .chart-container {
     position: relative;
-    height: 300px;
+    height: 320px;
     width: 100%;
 }
 
-/* --- SECTION TITLES --- */
+/* --- SECTION TITLES / GROUP HEADERS --- */
 .table-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 10px 14px;
-    background-color: #202020;
-    border-left: 4px solid #0747A6;
-    color: #deebff;
-    margin-bottom: 12px;
+    color: #ffffff;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.candidates-title {
-    border-left-color: #0747A6;
+.table-title::before {
+    content: "▼";
+    font-size: 10px;
 }
 
-.ready-title {
-    border-left-color: #3b79d5;
-}
+.candidates-title::before { color: #0086f0; }
+.ready-title::before { color: #fdab3d; }
+.done-title::before { color: #00c875; }
 
-.done-title {
-    border-left-color: #1E982D;
-}
-
-/* --- JIRA ISSUE TABLE --- */
+/* --- MONDAY TABLE STYLE --- */
 .table-responsive {
     width: 100%;
     overflow-x: auto;
-    background-color: #202020;
-    border: 1px solid #404040;
+    background-color: #1c1d1f; /* Fundo do interior da tabela */
+    border: 1px solid #2d3135;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
 
 .jira-table {
     width: 100%;
     border-collapse: collapse;
-    background-color: #202020;
+    background-color: #1c1d1f;
     text-align: left;
 }
 
 .jira-table thead tr th {
-    background-color: #373636;
-    color: #2c78b3 !important;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 10px 12px;
-    border-bottom: 1px solid #404040;
+    background-color: #18191b;
+    color: #c5c7d0;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 12px 14px;
+    border-bottom: 1px solid #2d3135;
+    border-right: 1px solid #202226;
     white-space: nowrap;
 }
 
 .jira-table tbody tr {
-    background-color: #202020;
-    border-bottom: 1px solid #404040;
-    transition: background-color 0.1s ease;
+    border-bottom: 1px solid #2d3135;
+    transition: background-color 0.15s ease;
 }
 
 .jira-table tbody tr:hover {
-    background-color: #404040;
+    background-color: #202226; /* Hover escuro sutil */
 }
 
 .jira-table tbody tr td {
-    padding: 9px 12px;
-    color: #999999;
+    padding: 10px 14px;
+    color: #c5c7d0;
     vertical-align: middle;
+    border-right: 1px solid #2d3135;
     white-space: nowrap;
 }
 
+/* --- GROUPING HEADERS (Sprints) --- */
 .version-row td {
-    background-color: #303030 !important;
-    color: #deebff !important;
-    font-weight: 700;
-    font-size: 12px;
-    padding: 8px 12px !important;
-    border-left: 3px solid #0747A6;
+    background-color: #202226 !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 14px !important;
+    border-left: 6px solid #0086f0 !important;
+    border-right: none !important;
+}
+
+/* --- MONDAY BARRA LATERAL ESQUERDA POR GRUPOS --- */
+.row-candidates td:first-child {
+    border-left: 6px solid #0086f0 !important; /* Barra Azul (Candidates) */
+}
+.row-ready td:first-child {
+    border-left: 6px solid #fdab3d !important; /* Barra Laranja (Ready) */
+}
+.row-done td:first-child {
+    border-left: 6px solid #00c875 !important; /* Barra Verde (Done) */
 }
 
 /* --- LINKS --- */
 .ticket-link,
 .snow-link {
-    color: #2d7fbe;
+    color: #0086f0;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .ticket-link:hover,
 .snow-link:hover {
-    color: #3b79d5;
+    color: #3b9cff;
     text-decoration: underline;
 }
 
@@ -259,287 +268,184 @@ body {
 .assignee-cell {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: #FAFBFC;
+    gap: 10px;
+    color: #ffffff;
 }
 
 .avatar-circle {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background-color: #0747A6;
+    background-color: #2d3135;
+    border: 1px solid #3e434a;
     color: #ffffff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     flex-shrink: 0;
 }
 
-/* --- ISSUE TYPE BADGES --- */
-.badge-type {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    border-radius: 3px;
-    color: #ffffff;
-}
-
-.badge-type.story {
-    background-color: #2e6b31;
-}
-
-.badge-type.task,
-.badge-type.subtask {
-    background-color: #2f557b;
-}
-
-.badge-type.bug {
-    background-color: #841f1f;
-}
-
-/* --- CLOUD BADGES --- */
-.badge-cloud {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 3px;
-    background-color: #303030;
-    color: #deebff;
-    border: 1px solid #404040;
-}
-
-.badge-cloud.sales {
-    background-color: #083376;
-    color: #deebff;
-}
-
-.badge-cloud.service {
-    background-color: #443a33;
-    color: #ffffff;
-}
-
-/* --- STATUS LOZENGES --- */
+/* --- STATUS LOZENGES (Cores Sólidas Monday.com Carbon) --- */
 .badge-status {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    border-radius: 3px;
-    background-color: rgba(74, 103, 133, 0.63);
-    border: 1px solid rgba(74, 103, 133, 0.63);
-    color: #FAFBFC;
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    border-radius: 4px;
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 .badge-status.status-in-dev,
 .badge-status.status-in-test,
 .badge-status.status-ready-for-test,
 .badge-status.status-dev-complete {
-    background-color: rgba(59, 127, 196, 0.63);
-    border-color: rgba(59, 127, 196, 0.63);
-    color: #deebff;
+    background-color: #fdab3d; /* Em andamento (Laranja) */
 }
 
 .badge-status.status-on-hold {
-    background-color: rgba(255, 211, 81, 0.63);
-    border-color: rgba(255, 211, 81, 0.63);
-    color: #FAFBFC;
+    background-color: #e2445c; /* Parado (Vermelho) */
 }
 
 .badge-status.status-ready-for-production,
 .badge-status.status-done {
-    background-color: rgba(20, 137, 44, 0.63);
-    border-color: rgba(20, 137, 44, 0.63);
-    color: #FAFBFC;
+    background-color: #00c875; /* Feito (Verde) */
 }
 
 /* --- YES / NO / N/A BADGES --- */
 .badge-yn {
     display: inline-block;
-    padding: 2px 7px;
+    padding: 4px 10px;
     font-size: 11px;
-    font-weight: 700;
-    border-radius: 3px;
+    font-weight: 600;
+    border-radius: 4px;
     text-align: center;
+    min-width: 54px;
 }
 
 .badge-yn.yes {
-    background-color: #1c2d1a;
-    color: #4FAA47;
-    border: 1px solid #256921;
+    background-color: #00c875;
+    color: #ffffff;
 }
 
 .badge-yn.no {
-    background-color: #33191a;
-    color: #c76060;
-    border: 1px solid #862a2a;
+    background-color: #e2445c;
+    color: #ffffff;
 }
 
 .badge-yn.na,
 .badge-yn.n-a {
-    background-color: #2e2e2e;
-    color: #8c8c8c;
-    border: 1px solid #484848;
+    background-color: #2d3135;
+    color: #c5c7d0;
 }
 
 .pr-text {
-    background-color: #083376;
-    color: #FAFBFC;
-    padding: 2px 6px;
-    border-radius: 3px;
+    background-color: #202226;
+    color: #0086f0;
+    border: 1px solid #2d3135;
+    padding: 4px 8px;
+    border-radius: 4px;
     font-family: monospace;
     font-size: 12px;
 }
 
-/* --- JIRA PRIMARY BLUE BUTTON ("Create page", "Create SNOW") --- */
+/* --- MONDAY BLUE BUTTON --- */
 .btn-confluence {
-    background-color: #0747A6;
+    background-color: #0086f0;
     color: #ffffff !important;
     border: none;
-    border-radius: 3px;
-    height: 28px;
-    line-height: 28px;
-    padding: 0 12px;
+    border-radius: 4px;
+    height: 32px;
+    padding: 0 16px;
     font-size: 12px;
     font-weight: 500;
-    font-family: inherit;
     cursor: pointer;
-    text-shadow: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    transition: background-color 0.12s ease-out;
+    gap: 8px;
+    transition: background-color 0.2s;
 }
 
 .btn-confluence:hover {
-    background-color: #285aa4;
-    color: #ffffff !important;
-}
-
-.btn-confluence:active {
-    background-color: #083376;
-    color: #deebff !important;
+    background-color: #0070cd;
 }
 
 .btn-confluence.btn-error {
-    background-color: #862a2a;
-    color: #ffffff !important;
+    background-color: #e2445c;
 }
 
 .btn-confluence.btn-error:hover {
-    background-color: #c31d1d;
-}
-
-.loading-state {
-    color: #deebff;
-    font-size: 12px;
-    font-weight: 500;
+    background-color: #b93245;
 }
 
 .confluence-link-success {
-    background-color: #404040;
-    color: #deebff !important;
-    border: 1px solid #0747A6;
-    border-radius: 3px;
-    height: 28px;
-    line-height: 26px;
-    padding: 0 12px;
+    background-color: #202226;
+    color: #00c875 !important;
+    border: 1px solid #00c875;
+    border-radius: 4px;
+    height: 32px;
+    padding: 0 16px;
     font-size: 12px;
     font-weight: 500;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
+    transition: all 0.2s;
 }
 
 .confluence-link-success:hover {
-    background-color: #0747A6;
+    background-color: #00c875;
     color: #ffffff !important;
-    text-decoration: none;
 }
 
-/* --- COMPACT ICON BUTTONS FOR ALM PAGE (VIEW & UPDATE) --- */
+/* --- ACTION ICON BUTTONS --- */
 .alm-action-group {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .btn-icon {
-    width: 28px;
-    height: 28px;
-    background-color: #404040;
-    color: #deebff !important;
-    border: 1px solid #0747A6;
-    border-radius: 3px;
+    width: 32px;
+    height: 32px;
+    background-color: #202226;
+    color: #c5c7d0 !important;
+    border: 1px solid #2d3135;
+    border-radius: 4px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    text-decoration: none;
-    padding: 0;
-    transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
+    transition: all 0.2s;
 }
 
 .btn-icon:hover {
-    background-color: #0747A6;
+    background-color: #0086f0;
     color: #ffffff !important;
+    border-color: #0086f0;
 }
 
-.btn-icon:active {
-    background-color: #083376;
-}
-
-.btn-icon:disabled {
-    opacity: 0.65;
-    cursor: wait;
-}
-
-/* Green feedback border when attachments finish syncing */
 .btn-icon-synced {
-    background-color: #1c2d1a !important;
-    border-color: #4FAA47 !important;
-    color: #4FAA47 !important;
-}
-
-.no-panel-text {
-    color: #606060;
-    font-size: 14px;
-    font-weight: bold;
-    user-select: none;
-}
-
-/* --- GLOBAL & BUTTON SPIN ANIMATION --- */
-.spin-animation {
-    display: inline-block;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
+    background-color: #00c875 !important;
+    border-color: #00c875 !important;
+    color: #ffffff !important;
 }
 
 /* --- SIGN-OFF GROUP --- */
 .signoff-group {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
 }
 
 .signoff-group .badge-yn {
     font-size: 10px;
-    padding: 2px 6px;
-    min-width: 50px;
-    text-align: center;
+    padding: 3px 6px;
+    min-width: 58px;
 }

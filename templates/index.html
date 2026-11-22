@@ -69,7 +69,7 @@
                     </thead>
                     <tbody id="candidates-tbody">
                         {% for group in candidates %}
-                            <tr class="version-row">
+                            <tr class="row-candidates">
                                 <td colspan="14">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
@@ -529,7 +529,7 @@
 
                     data.candidates.forEach(group => {
                         candidatesTbody.innerHTML += `
-                            <tr class="version-row">
+                            <tr class="row-candidates">
                                 <td colspan="14">${group.version}</td>
                             </tr>`;
 
