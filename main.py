@@ -924,7 +924,7 @@ def fetch_jira_data():
                 pr_validated_val = "N/A"
             else:
                 logs_val = logs_status
-                pr_to_prod_val = prd_pr
+                pr_to_prod_val = prd_pr if prd_pr else "—"
                 pr_validated_val = "Yes" if prd_pr else "No"
 
             # 5. Carrega o estado do painel SNOW e extrai Sprints do Jira

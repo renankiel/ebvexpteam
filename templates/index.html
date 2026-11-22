@@ -150,7 +150,9 @@
                                     <td>
                                         {% if ticket.pr_to_prod == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
-                                        {% elif ticket.pr_to_prod %}
+                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
                                             <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                         {% endif %}
                                     </td>
@@ -278,7 +280,9 @@
                                 <td>
                                     {% if ticket.pr_to_prod == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
-                                    {% elif ticket.pr_to_prod %}
+                                    {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
@@ -403,9 +407,11 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if ticket.pr_to_prod == "N/A" %}
+                                    {% if ticket.pr_to_prod == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
-                                    {% elif ticket.pr_to_prod %}
+                                    {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
                                         <span class="pr-text">{{ ticket.pr_to_prod }}</span>
                                     {% endif %}
                                 </td>
