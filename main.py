@@ -527,6 +527,85 @@ def extract_execution_order_from_snow(description_adf):
     return ""
 
 
+def extract_alm_call_from_alm_page(description_adf):
+    """
+    Localiza a tabela abaixo do Info Panel 'ALM PAGE', busca a coluna 'ALM CALL'
+    e retorna o valor contido nela (que já é convertido para DD/MM pelo extract_plain_text_adf).
+    """
+    table_node = find_panel_table(description_adf, "ALM PAGE")
+    if not table_node:
+        return "—"
+
+    rows = table_node.get("content", [])
+    alm_call_col_index = None
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            for idx, cell in enumerate(cells):
+                header_text = extract_plain_text_adf(cell).upper().strip()
+                if "ALM CALL" in header_text:
+                    alm_call_col_index = idx
+                    break
+        else:
+            data_rows.append(cells)
+
+    if not data_rows or alm_call_col_index is None:
+        return "—"
+
+    first_data_row = data_rows[0]
+    if alm_call_col_index < len(first_data_row):
+        val = extract_plain_text_adf(first_data_row[alm_call_col_index]).strip()
+        return val if val else "—"
+
+    return "—"
+
+
+def parse_date_for_sorting(date_str):
+    """
+    Converte strings de datas nos formatos 'DD/MM hh:mi' ou 'DD/MM' para datetime
+    permitindo uma ordenação cronológica precisa no Python.
+    """
+    import datetime
+    if not date_str or date_str in ["—", "N/A"]:
+        return datetime.datetime(9999, 12, 31, 23, 59)
+    
+    current_year = datetime.datetime.now().year
+    
+    # Tenta formato com hora: 'DD/MM hh:mi'
+    try:
+        return datetime.datetime.strptime(f"{date_str} {current_year}", "%d/%m %H:%M %Y")
+    except ValueError:
+        pass
+        
+    # Tenta formato apenas data: 'DD/MM'
+    try:
+        return datetime.datetime.strptime(f"{date_str} {current_year}", "%d/%m %Y")
+    except ValueError:
+        pass
+        
+    return datetime.datetime(9999, 12, 31, 23, 59)
+
+
+def sort_alm_call_groups(group_name):
+    """
+    Garante que as seções de data fiquem em ordem cronológica
+    e coloca o 'To Be Defined' sempre no fim da fila.
+    """
+    import datetime
+    if group_name == "To Be Defined":
+        return datetime.datetime(9999, 12, 31, 23, 59)
+    return parse_date_for_sorting(group_name)
+
+
 def parse_confluence_approvals(page_id):
     """
     Busca o corpo ADF ao vivo da página do Confluence e extrai o status de aprovação:
@@ -972,6 +1051,7 @@ def fetch_jira_data():
                 "pr_validated": pr_validated_val,
                 "pr_validated_lower": pr_validated_val.lower().replace('/', '-'),
                 "signoffs": signoff_statuses,
+                "alm_call": extract_alm_call_from_alm_page(description_adf),
                 "execution_order": extract_execution_order_from_snow(description_adf),
                 "change_hour": extract_change_hour_from_snow(description_adf),
                 "sprint_id": oldest_sprint_id
@@ -986,16 +1066,41 @@ def fetch_jira_data():
                     candidates_groups[sprint_name] = []
                 candidates_groups[sprint_name].append(ticket_obj)
 
-        # Ordena as Sprints da mais antiga para a mais nova
-        sorted_group_names = sorted(
+        # 🟢 ORDENAÇÃO DE CANDIDATES (Sprints)
+        sorted_candidate_group_names = sorted(
             candidates_groups.keys(),
             key=lambda name: min(t["sprint_id"] for t in candidates_groups[name])
         )
 
         formatted_candidates = [
             {"version": name, "tickets": candidates_groups[name]}
-            for name in sorted_group_names
+            for name in sorted_candidate_group_names
         ]
+
+        # 🟢 AGRUPAMENTO E ORDENAÇÃO DE READY FOR PRODUCTION (Agrupado por ALM Call)
+        ready_prod_groups = {}
+        for ticket in ready_prod_list:
+            alm_call_val = ticket.get("alm_call", "—")
+            group_name = alm_call_val if (alm_call_val and alm_call_val != "—") else "To Be Defined"
+
+            if group_name not in ready_prod_groups:
+                ready_prod_groups[group_name] = []
+            ready_prod_groups[group_name].append(ticket)
+
+        # Ordena os cabeçalhos de deploy por ordem cronológica (To Be Defined por último)
+        sorted_ready_group_names = sorted(ready_prod_groups.keys(), key=sort_alm_call_groups)
+
+        formatted_ready_prod = []
+        for name in sorted_ready_group_names:
+            # Ordena os tickets de cada grupo internamente por 'Change Hour' de forma crescente
+            sorted_tickets_in_group = sorted(
+                ready_prod_groups[name],
+                key=lambda t: parse_date_for_sorting(t.get("change_hour"))
+            )
+            formatted_ready_prod.append({
+                "version": name,
+                "tickets": sorted_tickets_in_group
+            })
 
         if not formatted_candidates:
             formatted_candidates = [
@@ -1005,7 +1110,15 @@ def fetch_jira_data():
                 }
             ]
 
-        return formatted_candidates, done_list, ready_prod_list
+        if not formatted_ready_prod:
+            formatted_ready_prod = [
+                {
+                    "version": "To Be Defined",
+                    "tickets": []
+                }
+            ]
+
+        return formatted_candidates, done_list, formatted_ready_prod
 
     except Exception as error:
         print(f"⚠️ Error connecting to Jira API: {error}")

@@ -63,6 +63,7 @@
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified Column Header -->
+                            <th>ALM Call</th>
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
@@ -172,7 +173,7 @@
                                             <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
                                         </div>
                                     </td>
-
+                                    <td>{{ ticket.alm_call }}</td>
                                     <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                     <td>{{ ticket.change_hour }}</td>
                                 </tr>
@@ -202,110 +203,117 @@
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified -->
+                            <th>ALM Call</th>
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
                     </thead>
                     <tbody id="ready-prod-tbody">
-                        {% for ticket in ready_prod_tickets %}
-                            <tr>
-                                <td>
-                                    <div id="snow-container-{{ ticket.ticket }}">
-                                        {% if ticket.snow_state == 'exists' %}
-                                            <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
-                                                {{ ticket.snow_number }}
-                                            </a>
-                                        {% elif ticket.snow_state == 'ready' %}
-                                            <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
-                                                Create SNOW
-                                            </button>
-                                        {% else %}
-                                            <span class="no-panel-text">—</span>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
-                                <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
-                                <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
-                                <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
-                                <td>
-                                    <div id="alm-container-{{ ticket.ticket }}">
-                                        {% if ticket.alm_page_state == 'exists' %}
-                                            <div class="alm-action-group">
-                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
-                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                                        <circle cx="12" cy="12" r="3"></circle>
-                                                    </svg>
-                                                </a>
-                                                <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
-                                                    <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <polyline points="23 4 23 10 17 10"></polyline>
-                                                        <polyline points="1 20 1 14 7 14"></polyline>
-                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        {% elif ticket.alm_page_state == 'ready' %}
-                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
-                                                Create page
-                                            </button>
-                                        {% else %}
-                                            <span class="no-panel-text">—</span>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="assignee-cell">
-                                        <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
-                                        {{ ticket.assignee }}
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if ticket.manual == 'Yes' %}
-                                        <span class="badge-yn yes">Yes</span>
-                                    {% elif ticket.manual == 'No' %}
-                                        <span class="badge-yn no">No</span>
-                                    {% else %}
-                                        <span class="no-panel-text">—</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if ticket.logs == 'N/A' %}
-                                        <span class="badge-yn na">N/A</span>
-                                    {% else %}
-                                        <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if ticket.pr_to_prod == 'N/A' %}
-                                        <span class="badge-yn na">N/A</span>
-                                    {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
-                                        <span class="no-panel-text">—</span>
-                                    {% else %}
-                                        <span class="pr-text">{{ ticket.pr_to_prod }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if ticket.pr_validated == 'N/A' %}
-                                        <span class="badge-yn na">N/A</span>
-                                    {% else %}
-                                        <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
-                                    {% endif %}
-                                </td>
-                                
-                                <!-- 🟢 Unified SIGNOFF Column -->
-                                <td>
-                                    <div class="signoff-group">
-                                        <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
-                                        <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
-                                        <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
-                                    </div>
-                                </td>
-
-                                <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
-                                <td>{{ ticket.change_hour }}</td>
+                        {% for group in ready_prod_tickets %}
+                            <tr class="version-row">
+                                <td colspan="15">{{ group.version }}</td>
                             </tr>
+                            {% for ticket in group.tickets %}
+                                <tr class="row-ready">
+                                    <td>
+                                        <div id="snow-container-{{ ticket.ticket }}">
+                                            {% if ticket.snow_state == 'exists' %}
+                                                <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                    {{ ticket.snow_number }}
+                                                </a>
+                                            {% elif ticket.snow_state == 'ready' %}
+                                                <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create SNOW
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                    <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                    <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
+                                    <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
+                                    <td>
+                                        <div id="alm-container-{{ ticket.ticket }}">
+                                            {% if ticket.alm_page_state == 'exists' %}
+                                                <div class="alm-action-group">
+                                                    <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                            <circle cx="12" cy="12" r="3"></circle>
+                                                        </svg>
+                                                    </a>
+                                                    <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                        <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                                            <polyline points="1 20 1 14 7 14"></polyline>
+                                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            {% elif ticket.alm_page_state == 'ready' %}
+                                                <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create page
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
+                                            {{ ticket.assignee }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if ticket.manual == 'Yes' %}
+                                            <span class="badge-yn yes">Yes</span>
+                                        {% elif ticket.manual == 'No' %}
+                                            <span class="badge-yn no">No</span>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.logs == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_validated == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                            <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                            <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                        </div>
+                                    </td>
+                                    
+                                    <td>{{ ticket.alm_call }}</td>
+
+                                    <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                    <td>{{ ticket.change_hour }}</td>
+                                </tr>
+                            {% endfor %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -331,6 +339,7 @@
                             <th>PR to Prod</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified -->
+                            <th>ALM Call</th>
                             <th>Execution Order</th>
                             <th>Change Hour</th>
                         </tr>
@@ -431,7 +440,7 @@
                                         <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
                                     </div>
                                 </td>
-
+                                <td>{{ ticket.alm_call }}</td>
                                 <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
                                 <td>{{ ticket.change_hour }}</td>
                             </tr>
@@ -574,57 +583,66 @@
                                             <span class="badge-yn ${uatSignClass}">UAT</span>
                                         </div>
                                     </td>
+                                    <td>${ticket.alm_call}</td>
                                     <td><span class="execution-order">${ticket.execution_order}</span></td>
                                     <td>${ticket.change_hour}</td>
                                 </tr>`;
                         });
                     });
 
-                    // 1.5 Re-render Ready for Production Tab Dinamicamente
+                    // Re-render Ready for Production Tab com suporte a Grupos
                     const readyProdTbody = document.getElementById("ready-prod-tbody");
                     if (readyProdTbody) {
                         readyProdTbody.innerHTML = "";
 
-                        data.ready_prod_tickets.forEach(ticket => {
-                            const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
-                            const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
-                            const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
-                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
-
-                            const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
-                            const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
-                            const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
-
+                        data.ready_prod_tickets.forEach(group => {
                             readyProdTbody.innerHTML += `
-                                <tr>
-                                    <td>${renderSnowCell(ticket)}</td>
-                                    <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
-                                    <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
-                                    <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
-                                    <td><span class="badge-status status-ready-for-production">${ticket.status}</span></td>
-                                    <td>${renderAlmCell(ticket)}</td>
-                                    <td>
-                                        <div class="assignee-cell">
-                                            <span class="avatar-circle">${ticket.assignee_initial}</span>
-                                            ${ticket.assignee}
-                                        </div>
-                                    </td>
-                                    <td>${manualBadge}</td>
-                                    <td>${logsBadge}</td>
-                                    <td>${prProdBadge}</td>
-                                    <td>${prValidatedBadge}</td>
-                                    <td>
-                                        <div class="signoff-group">
-                                            <span class="badge-yn ${devSignClass}">DEVINT</span>
-                                            <span class="badge-yn ${qaSignClass}">QA</span>
-                                            <span class="badge-yn ${uatSignClass}">UAT</span>
-                                        </div>
-                                    </td>
-                                    <td><span class="execution-order">${ticket.execution_order}</span></td>
-                                    <td>${ticket.change_hour}</td>
+                                <tr class="version-row">
+                                    <td colspan="15">${group.version}</td>
                                 </tr>`;
+
+                            group.tickets.forEach(ticket => {
+                                const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                                const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                                const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod === '—' || !ticket.pr_to_prod ? '<span class="no-panel-text">—</span>' : `<span class="pr-text">${ticket.pr_to_prod}</span>`);
+                                const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
+
+                                const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                                const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                                const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
+
+                                readyProdTbody.innerHTML += `
+                                    <tr class="row-ready">
+                                        <td>${renderSnowCell(ticket)}</td>
+                                        <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                        <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                        <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                        <td><span class="badge-status status-ready-for-production">${ticket.status}</span></td>
+                                        <td>${renderAlmCell(ticket)}</td>
+                                        <td>
+                                            <div class="assignee-cell">
+                                                <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                                ${ticket.assignee}
+                                            </div>
+                                        </td>
+                                        <td>${manualBadge}</td>
+                                        <td>${logsBadge}</td>
+                                        <td>${prProdBadge}</td>
+                                        <td>${prValidatedBadge}</td>
+                                        <td>
+                                            <div class="signoff-group">
+                                                <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                                <span class="badge-yn ${qaSignClass}">QA</span>
+                                                <span class="badge-yn ${uatSignClass}">UAT</span>
+                                            </div>
+                                        </td>
+                                        <td>${ticket.alm_call}</td>
+                                        <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                        <td>${ticket.change_hour}</td>
+                                    </tr>`;
+                            });
                         });
-                    }
+                    }                    
 
                     // 2. Re-render Done Tab
                     const doneTbody = document.getElementById("done-tbody");
@@ -665,6 +683,7 @@
                                         <span class="badge-yn ${uatSignClass}">UAT</span>
                                     </div>
                                 </td>
+                                <td>${ticket.alm_call}</td>
                                 <td><span class="execution-order">${ticket.execution_order}</span></td>
                                 <td>${ticket.change_hour}</td>
                             </tr>`;
