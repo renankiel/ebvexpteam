@@ -1102,6 +1102,22 @@ def fetch_jira_data():
                 "tickets": sorted_tickets_in_group
             })
 
+        # 🟢 NOVO: Geração dinâmica de dados do Gráfico de Linhas (ALM Call)
+        chart_counts = {}
+        for ticket in ready_prod_list:
+            alm_call_val = ticket.get("alm_call")
+            if alm_call_val and alm_call_val != "—":
+                chart_counts[alm_call_val] = chart_counts.get(alm_call_val, 0) + 1
+
+        # Ordena as datas do gráfico de forma cronológica (mais antiga para mais recente)
+        sorted_chart_labels = sorted(chart_counts.keys(), key=parse_date_for_sorting)
+        sorted_chart_counts = [chart_counts[label] for label in sorted_chart_labels]
+
+        chart_data = {
+            "labels": sorted_chart_labels,
+            "counts": sorted_chart_counts
+        }
+
         if not formatted_candidates:
             formatted_candidates = [
                 {
@@ -1118,7 +1134,7 @@ def fetch_jira_data():
                 }
             ]
 
-        return formatted_candidates, done_list, formatted_ready_prod
+        return formatted_candidates, done_list, formatted_ready_prod, chart_data  # 🟢 Retorna o gráfico dinâmico
 
     except Exception as error:
         print(f"⚠️ Error connecting to Jira API: {error}")
@@ -1128,7 +1144,7 @@ def fetch_jira_data():
                 "tickets": []
             }
         ]
-        return error_group, [], []
+        return error_group, [], [], {"labels": [], "counts": []}
 
 
 # =====================================================================
@@ -1136,27 +1152,27 @@ def fetch_jira_data():
 # =====================================================================
 @app.route("/")
 def home():
-    candidates_data, done_data, ready_prod_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data = fetch_jira_data()  # 🟢 Atualizado
 
     return render_template(
         "index.html",
         candidates=candidates_data,
         ready_prod_tickets=ready_prod_data,  # 🟢 Passando dinamicamente do Jira
         done_tickets=done_data,
-        chart_data=CHART_DATA,
+        chart_data=chart_data,
         jira_url=JIRA_URL or "https://atlassian.net"
     )
 
 
 @app.route("/api/refresh", methods=["GET"])
 def api_refresh():
-    candidates_data, done_data, ready_prod_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data = fetch_jira_data()  # 🟢 Atualizado
     return jsonify({
         "success": True,
         "candidates": candidates_data,
         "ready_prod_tickets": ready_prod_data,  # 🟢 Retornando dinamicamente para o JS
         "done_tickets": done_data,
-        "chart_data": CHART_DATA
+        "chart_data": chart_data
     })
 
 

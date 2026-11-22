@@ -468,7 +468,20 @@
             }
 
             document.getElementById(tabName).classList.add("active");
-            evt.currentTarget.classList.add("active");
+            
+            // 🟢 CORREÇÃO: Habilita ativação direta caso chamado de fora
+            if (evt) {
+                evt.currentTarget.classList.add("active");
+            } else {
+                const btnMap = {
+                    'dashboard': 'tab-dashboard-btn',
+                    'candidates': 'tab-candidates-btn',
+                    'ready-for-production': 'tab-ready-for-production-btn',
+                    'done': 'tab-done-btn'
+                };
+                const activeBtn = document.getElementById(btnMap[tabName]);
+                if (activeBtn) activeBtn.classList.add("active");
+            }
         }
 
         // Reusable SVG Icons for View Page & Update Page
@@ -816,42 +829,47 @@
             });
         }
 
-        // Chart.js Horizontal Bar Chart
+        // Chart.js - Monday Carbon Bar Chart (Gráfico de Barras)
         const ctx = document.getElementById('productionChart').getContext('2d');
         const productionChart = new Chart(ctx, {
-            type: 'bar',
+            type: 'bar',  // 🟢 Alterado de 'line' para 'bar'
             data: {
                 labels: {{ chart_data.labels | tojson }},
                 datasets: [{
                     label: 'Tickets',
                     data: {{ chart_data.counts | tojson }},
-                    borderColor: '#0747A6',
-                    backgroundColor: 'rgba(7, 71, 166, 0.55)',
+                    borderColor: '#0086f0',             /* Azul Monday */
+                    backgroundColor: 'rgba(0, 134, 240, 0.65)', /* Azul semi-transparente clássico */
                     borderWidth: 1.5,
-                    borderRadius: 2,
-                    barThickness: 24
+                    borderRadius: 4,                    /* Bordas das barras ligeiramente arredondadas */
+                    barThickness: 28                    /* Espessura fixa e limpa para as colunas */
                 }]
             },
             options: {
-                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
+                // 🟢 INTERATIVIDADE: Redireciona para a aba de produção ao clicar em qualquer barra do gráfico
+                onClick: (evt, activeElements) => {
+                    if (activeElements.length > 0) {
+                        openTab(null, 'ready-for-production');
+                    }
+                },
                 plugins: {
                     legend: { display: false }
                 },
                 scales: {
                     x: {
-                        grid: { color: '#404040' },
-                        ticks: { color: '#999999', stepSize: 1 },
-                        beginAtZero: true
+                        grid: { color: '#2d3135', display: false }, /* Remove linhas verticais para visual limpo */
+                        ticks: { color: '#c5c7d0' }
                     },
                     y: {
-                        grid: { display: false },
-                        ticks: { color: '#FAFBFC' }
+                        grid: { color: '#2d3135' },
+                        ticks: { color: '#c5c7d0', stepSize: 1 },
+                        beginAtZero: true
                     }
                 }
             }
-        });
+        });        
     </script>
 </body>
 </html>
