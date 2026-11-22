@@ -18,9 +18,13 @@
                     <p class="subtitle">Amber Customer Experience Integrations</p>
                 </div>
             </div>
-            <!-- Global AJAX Refresh Button inside Header (Right Aligned) -->
-            <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-confluence">
-                <span id="refresh-icon">🔄</span> Refresh Board
+            <!-- Global AJAX Refresh Button inside Header (🟢 Atualizado: Compacto Estilo Monday Icon) -->
+            <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-icon" title="Refresh Board Data">
+                <svg id="refresh-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
             </button>
         </header>
 
@@ -32,13 +36,22 @@
             <button class="tab-button" id="tab-done-btn" onclick="openTab(event, 'done')">Done</button>
         </div>
 
-        <!-- TAB 1: Dashboard (Horizontal Bar Chart) -->
+        <!-- TAB 1: Dashboard (Dois Gráficos Lado a Lado) -->
         <div id="dashboard" class="tab-content active">
             <section class="metrics-section">
+                <!-- Gráfico Esquerdo: Deploys por Data de Call -->
                 <div class="metric-card">
                     <h3>Tickets Ready for Production by Day</h3>
                     <div class="chart-container">
                         <canvas id="productionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico Direito: Candidates por Status (Barras Horizontais) -->
+                <div class="metric-card">
+                    <h3>Candidate Tickets by Status</h3>
+                    <div class="chart-container">
+                        <canvas id="candidatesStatusChart"></canvas>
                     </div>
                 </div>
             </section>
@@ -702,10 +715,16 @@
                             </tr>`;
                     });
 
-                    // 3. Update Chart
+                    // 3. Update Charts
                     productionChart.data.labels = data.chart_data.labels;
                     productionChart.data.datasets[0].data = data.chart_data.counts;
                     productionChart.update();
+
+                    // 🟢 ATUALIZADO: Atualiza dinamicamente o gráfico de status
+                    candidatesStatusChart.data.labels = data.candidates_chart_data.labels;
+                    candidatesStatusChart.data.datasets[0].data = data.candidates_chart_data.counts;
+                    candidatesStatusChart.update();
+                    
                 } else {
                     alert("Failed to refresh: " + data.message);
                 }
@@ -866,6 +885,43 @@
                         grid: { color: '#2d3135' },
                         ticks: { color: '#c5c7d0', stepSize: 1 },
                         beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Chart.js - Monday Carbon Horizontal Bar Chart (Candidates por Status)
+        const candidatesCtx = document.getElementById('candidatesStatusChart').getContext('2d');
+        const candidatesStatusChart = new Chart(candidatesCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ candidates_chart_data.labels | tojson }},
+                datasets: [{
+                    label: 'Tickets',
+                    data: {{ candidates_chart_data.counts | tojson }},
+                    borderColor: '#00c875',             /* Verde Feito da Monday */
+                    backgroundColor: 'rgba(0, 200, 117, 0.65)',
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                    barThickness: 20
+                }]
+            },
+            options: {
+                indexAxis: 'y',  /* 🟢 Torna o gráfico HORIZONTAL */
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#2d3135' },
+                        ticks: { color: '#c5c7d0', stepSize: 1 },
+                        beginAtZero: true
+                    },
+                    y: {
+                        grid: { color: '#2d3135', display: false }, /* Limpa grades do eixo de nomes */
+                        ticks: { color: '#c5c7d0' }
                     }
                 }
             }

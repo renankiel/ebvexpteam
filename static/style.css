@@ -135,13 +135,14 @@ body {
     display: block;
 }
 
-/* --- DASHBOARD & CHART SECTION --- */
+/* --- DASHBOARD & CHART SECTION (Monday Grid Lado a Lado) --- */
 .metrics-section {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* 🟢 Grid inteligente com largura mínima de 400px */
     gap: 24px;
     margin-bottom: 24px;
 }
+
 
 .metric-card {
     background-color: #1c1d1f;

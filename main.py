@@ -1102,20 +1102,35 @@ def fetch_jira_data():
                 "tickets": sorted_tickets_in_group
             })
 
-        # 🟢 NOVO: Geração dinâmica de dados do Gráfico de Linhas (ALM Call)
+                # Geração dinâmica de dados do Gráfico de Linhas (ALM Call)
         chart_counts = {}
         for ticket in ready_prod_list:
             alm_call_val = ticket.get("alm_call")
             if alm_call_val and alm_call_val != "—":
                 chart_counts[alm_call_val] = chart_counts.get(alm_call_val, 0) + 1
 
-        # Ordena as datas do gráfico de forma cronológica (mais antiga para mais recente)
         sorted_chart_labels = sorted(chart_counts.keys(), key=parse_date_for_sorting)
         sorted_chart_counts = [chart_counts[label] for label in sorted_chart_labels]
 
         chart_data = {
             "labels": sorted_chart_labels,
             "counts": sorted_chart_counts
+        }
+
+        # 🟢 NOVO: Geração dinâmica de dados do Gráfico de Candidates por Status
+        candidates_status_counts = {}
+        for sprint_name, tickets in candidates_groups.items():
+            for ticket in tickets:
+                status = ticket.get("status", "UNKNOWN")
+                candidates_status_counts[status] = candidates_status_counts.get(status, 0) + 1
+
+        # Ordena as labels dos status alfabeticamente
+        sorted_status_labels = sorted(candidates_status_counts.keys())
+        sorted_status_counts = [candidates_status_counts[label] for label in sorted_status_labels]
+
+        candidates_chart_data = {
+            "labels": sorted_status_labels,
+            "counts": sorted_status_counts
         }
 
         if not formatted_candidates:
@@ -1134,7 +1149,8 @@ def fetch_jira_data():
                 }
             ]
 
-        return formatted_candidates, done_list, formatted_ready_prod, chart_data  # 🟢 Retorna o gráfico dinâmico
+        # Retorna ambos os dados de gráfico
+        return formatted_candidates, done_list, formatted_ready_prod, chart_data, candidates_chart_data
 
     except Exception as error:
         print(f"⚠️ Error connecting to Jira API: {error}")
@@ -1144,7 +1160,7 @@ def fetch_jira_data():
                 "tickets": []
             }
         ]
-        return error_group, [], [], {"labels": [], "counts": []}
+        return error_group, [], [], {"labels": [], "counts": []}, {"labels": [], "counts": []}
 
 
 # =====================================================================
@@ -1152,7 +1168,7 @@ def fetch_jira_data():
 # =====================================================================
 @app.route("/")
 def home():
-    candidates_data, done_data, ready_prod_data, chart_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
 
     return render_template(
         "index.html",
@@ -1160,19 +1176,21 @@ def home():
         ready_prod_tickets=ready_prod_data,  # 🟢 Passando dinamicamente do Jira
         done_tickets=done_data,
         chart_data=chart_data,
+        candidates_chart_data=candidates_chart_data,
         jira_url=JIRA_URL or "https://atlassian.net"
     )
 
 
 @app.route("/api/refresh", methods=["GET"])
 def api_refresh():
-    candidates_data, done_data, ready_prod_data, chart_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
     return jsonify({
         "success": True,
         "candidates": candidates_data,
         "ready_prod_tickets": ready_prod_data,  # 🟢 Retornando dinamicamente para o JS
         "done_tickets": done_data,
-        "chart_data": chart_data
+        "chart_data": chart_data,
+        "candidates_chart_data": candidates_chart_data
     })
 
 
