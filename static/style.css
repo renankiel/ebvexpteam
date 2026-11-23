@@ -467,3 +467,111 @@ body {
         transform: rotate(360deg);
     }
 }
+
+/* --- USER AVATAR & DROPDOWN STYLE --- */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Mantém o mesmo alinhamento lado a lado */
+    position: relative;
+}
+
+/* Avatar button: Same format, height (32px), color and style as btn-icon */
+.avatar-btn {
+    height: 32px;
+    width: 32px;
+    background-color: #1c1d1f;
+    border: 1px solid #323338;
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.avatar-btn:hover {
+    background-color: #2d2f31;
+    border-color: #404245;
+}
+
+.avatar-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-fallback {
+    color: #deebff;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Dropdown Container */
+.user-profile-container {
+    position: relative;
+}
+
+/* Dropdown Menu Box - Monday Theme */
+.profile-dropdown {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background-color: #1c1d1f;
+    border: 1px solid #323338;
+    border-radius: 8px;
+    width: 240px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: none; /* Escondido por padrão */
+    flex-direction: column;
+}
+
+.profile-dropdown.active {
+    display: flex; /* Exibido ao clicar */
+}
+
+/* Dropdown Content */
+.dropdown-header {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dropdown-name {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dropdown-email {
+    color: #8c8c8c;
+    font-size: 12px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: #323338;
+    margin: 0;
+}
+
+.dropdown-logout {
+    padding: 12px 16px;
+    color: #ff5252; /* Vermelho destacado para o Logout */
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.15s ease;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.dropdown-logout:hover {
+    background-color: #2d2f31;
+}
