@@ -42,13 +42,71 @@
                         {% endif %}
                     </button>
 
-                    <!-- Profile Dropdown (Monday.com black theme) -->
-                    <div id="profile-dropdown" class="profile-dropdown">
+                    <!-- Profile Dropdown (Atualizado com Estilo de Botão Escuro e Ícone de Salvar) -->
+                    <div id="profile-dropdown" class="profile-dropdown" onclick="event.stopPropagation()">
                         <div class="dropdown-header">
                             <span class="dropdown-name">{{ session.get('user', {}).get('name', 'User') }}</span>
                             <span class="dropdown-email">{{ session.get('user', {}).get('email', '') }}</span>
+                            
+                            {% set gh_user = session.get('user', {}).get('github', '') %}
+                            
+                            <!-- Exibição do @ (Visível quando já existe um @ salvo) -->
+                            <div id="github-display-row" style="display: {{ 'flex' if gh_user else 'none' }}; align-items: center; justify-content: space-between; margin-top: 6px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+                                    </svg>
+                                    <span style="color: #a3a3a3; font-size: 12px;">
+                                        github: <strong id="github-display-text" style="color: #ffffff;">@{{ gh_user }}</strong>
+                                    </span>
+                                </div>
+                                
+                                <!-- Botãozinho de Lápis (Editar) idêntico ao padrão de botão escuro -->
+                                <button onclick="showGithubEditBox(event)" title="Atualizar @ do GitHub"
+                                        style="background: #1c1d1f; border: 1px solid #323338; color: #d0d0d0; border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;"
+                                        onmouseover="this.style.background='#323338'; this.style.borderColor='#46474c';"
+                                        onmouseout="this.style.background='#1c1d1f'; this.style.borderColor='#323338';">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 20h9"></path>
+                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Formulário de Cadastro / Edição -->
+                            <div id="github-edit-box" style="display: {{ 'none' if gh_user else 'flex' }}; flex-direction: column; gap: 6px; margin-top: 8px;">
+                                <label style="color: #8c8c8c; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;">
+                                    {{ 'ATUALIZAR @ DO GITHUB' if gh_user else 'INFORME SEU @ DO GITHUB' }}
+                                </label>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <input type="text" id="github-user-input" 
+                                        value="{{ gh_user }}" 
+                                        placeholder="Ex: rxk566" 
+                                        style="background: #111213; border: 1px solid #323338; color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 12px; height: 26px; box-sizing: border-box; width: 100%; outline: none;">
+                                    
+                                    <!-- Botão Salvar Estilizado como o de Refresh (26px centralizado) -->
+                                    <button id="github-save-btn" onclick="saveGithubUser(event)" title="Salvar Usuário"
+                                            style="background: #1c1d1f; border: 1px solid #323338; color: #d0d0d0; padding: 0; border-radius: 4px; width: 26px; height: 26px; min-width: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;"
+                                            onmouseover="this.style.background='#323338'; this.style.borderColor='#46474c';"
+                                            onmouseout="this.style.background='#1c1d1f'; this.style.borderColor='#323338';">
+                                        
+                                        <!-- Container do Ícone (Substituído por SPAN para evitar aninhamento de SVGs) -->
+                                        <span id="github-save-icon" style="display: flex; align-items: center; justify-content: center; transition: transform 0.15s; width: 14px; height: 14px;">
+                                            <!-- Ícone de Disquete (14px) -->
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                <polyline points="7 3 7 8 15 8"></polyline>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+
                         </div>
+
                         <div class="dropdown-divider"></div>
+
                         <a href="{{ url_for('auth.logout') }}" class="dropdown-logout">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -1003,6 +1061,76 @@
                 dropdown.classList.remove('active');
             }
         });
+
+        function showGithubEditBox(event) {
+            event.stopPropagation();
+            document.getElementById('github-display-row').style.display = 'none';
+            const editBox = document.getElementById('github-edit-box');
+            editBox.style.display = 'flex';
+            document.getElementById('github-user-input').focus();
+        }
+        
+        function saveGithubUser(event) {
+            event.stopPropagation();
+            const input = document.getElementById('github-user-input');
+            const btn = document.getElementById('github-save-btn');
+            const icon = document.getElementById('github-save-icon');
+            const githubVal = input.value.trim();
+        
+            if (!githubVal) return;
+        
+            // Desativa o botão e inicia a rotação suave do Refresh idêntico ao global
+            btn.disabled = true;
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Insere o SVG das duas setas curvas com 14px (Sem aninhamento!)
+            icon.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            `;
+        
+            fetch('/api/save-github-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ github: githubVal })
+            })
+            .then(res => res.json())
+            .then(data => {
+                // Restaura o botão e o ícone de disquete original
+                btn.disabled = false;
+                icon.style.animation = 'none';
+                icon.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                `;
+        
+                if (data.success) {
+                    // Atualiza o texto na tela e esconde o campo de edição sem dar reload!
+                    document.getElementById('github-display-text').textContent = '@' + data.github;
+                    input.value = data.github;
+                    document.getElementById('github-edit-box').style.display = 'none';
+                    document.getElementById('github-display-row').style.display = 'flex';
+                } else {
+                    alert(data.error || 'Erro ao salvar no Jira.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                icon.style.animation = 'none';
+                icon.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                `;
+                alert('Erro de conexão ao salvar.');
+            });
+        }        
     </script>    
 </body>
 </html>
