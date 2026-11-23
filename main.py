@@ -1,9 +1,10 @@
 import os
 import re
 import requests
+from auth import init_auth, login_required
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from jira import JIRA
 
 # =====================================================================
@@ -31,6 +32,7 @@ from confluence_publisher import (
 from servicenow_publisher import create_servicenow_change
 
 app = Flask(__name__)
+init_auth(app)
 
 # =====================================================================
 # 🔑 CREDENTIALS LOADED DYNAMICALLY FROM YOUR .ENV FILE
@@ -1238,6 +1240,7 @@ def fetch_jira_data():
 # 🌐 FLASK ROUTING & ACTION ENDPOINTS
 # =====================================================================
 @app.route("/")
+@login_required
 def home():
     candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
 
@@ -1253,6 +1256,7 @@ def home():
 
 
 @app.route("/api/refresh", methods=["GET"])
+@login_required
 def api_refresh():
     candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
     return jsonify({
@@ -1267,6 +1271,7 @@ def api_refresh():
 
 
 @app.route("/publish-page/<ticket_id>", methods=["POST"])
+@login_required
 def publish_page(ticket_id):
     try:
         jira = JIRA(
@@ -1341,6 +1346,7 @@ def publish_page(ticket_id):
 
 
 @app.route("/update-page/<ticket_id>", methods=["POST"])
+@login_required
 def update_page(ticket_id):
     try:
         jira = JIRA(
@@ -1373,6 +1379,7 @@ def update_page(ticket_id):
 
 
 @app.route("/create-snow/<ticket_id>", methods=["POST"])
+@login_required
 def create_snow(ticket_id):
     try:
         jira = JIRA(
