@@ -12,10 +12,10 @@
         <!-- Jira Style Header -->
         <header class="jira-header">
             <div class="project-info">
-                <span class="project-avatar">📊</span>
+                <span class="project-avatar">EXP</span>
                 <div>
-                    <h1>BVISTA Board & Analytics</h1>
-                    <p class="subtitle">Amber Customer Experience Integrations</p>
+                    <h1>EBV Experience Team</h1>
+                    <p class="subtitle">BVISTA DEVELOPMENT Board</p>
                 </div>
             </div>
             <!-- Global AJAX Refresh Button inside Header (🟢 Atualizado: Compacto Estilo Monday Icon) -->
@@ -107,7 +107,14 @@
 
                                     <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                     <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
-                                    <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
+                                    <td>
+                                        {% if ticket.cloud == '—' or not ticket.cloud %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                        {% endif %}
+                                    </td>
+
                                     <td><span class="badge-status status-{{ ticket.status_lower_dashed }}">{{ ticket.status }}</span></td>
 
                                     <!-- 3-State ALM Page Column (Icon Buttons for View & Update) -->
@@ -173,6 +180,8 @@
                                     <td>
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                            <span class="no-panel-text">—</span>
                                         {% else %}
                                             <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                         {% endif %}
@@ -245,7 +254,13 @@
                                     </td>
                                     <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                     <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
-                                    <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
+                                    <td>
+                                        {% if ticket.cloud == '—' or not ticket.cloud %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
                                     <td>
                                         <div id="alm-container-{{ ticket.ticket }}">
@@ -308,6 +323,8 @@
                                     <td>
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                            <span class="no-panel-text">—</span>
                                         {% else %}
                                             <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                         {% endif %}
@@ -377,7 +394,13 @@
                                 </td>
                                 <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
                                 <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
-                                <td><span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span></td>
+                                <td>
+                                    {% if ticket.cloud == '—' or not ticket.cloud %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
+                                        <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                    {% endif %}
+                                </td>
                                 <td><span class="badge-status status-done">{{ ticket.status }}</span></td>
                                 <td>
                                     <div id="alm-container-{{ ticket.ticket }}">
@@ -440,6 +463,8 @@
                                 <td>
                                     {% if ticket.pr_validated == 'N/A' %}
                                         <span class="badge-yn na">N/A</span>
+                                    {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                        <span class="no-panel-text">—</span>
                                     {% else %}
                                         <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
                                     {% endif %}
@@ -575,11 +600,11 @@
                             </tr>`;
 
                         group.tickets.forEach(ticket => {
+                            const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                             const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                             const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                             const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
-                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
-
+                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
                             const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
                             const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
                             const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
@@ -589,7 +614,7 @@
                                     <td>${renderSnowCell(ticket)}</td>
                                     <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
                                     <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
-                                    <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                    <td>${cloudBadge}</td>
                                     <td><span class="badge-status status-${ticket.status_lower_dashed}">${ticket.status}</span></td>
                                     <td>${renderAlmCell(ticket)}</td>
                                     <td>
@@ -628,11 +653,12 @@
                                 </tr>`;
 
                             group.tickets.forEach(ticket => {
+                                const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                                 const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                                 const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                                 const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod === '—' || !ticket.pr_to_prod ? '<span class="no-panel-text">—</span>' : `<span class="pr-text">${ticket.pr_to_prod}</span>`);
-                                const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
-
+                                const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+                            
                                 const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
                                 const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
                                 const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
@@ -642,7 +668,7 @@
                                         <td>${renderSnowCell(ticket)}</td>
                                         <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
                                         <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
-                                        <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                        <td>${cloudBadge}</td>
                                         <td><span class="badge-status status-ready-for-production">${ticket.status}</span></td>
                                         <td>${renderAlmCell(ticket)}</td>
                                         <td>
@@ -675,11 +701,12 @@
                     doneTbody.innerHTML = "";
 
                     data.done_tickets.forEach(ticket => {
+                        const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                         const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                         const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
                         const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
-                        const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`;
-
+                        const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+                            
                         const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
                         const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
                         const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
@@ -689,7 +716,7 @@
                                 <td>${renderSnowCell(ticket)}</td>
                                 <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
                                 <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
-                                <td><span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span></td>
+                                <td>${cloudBadge}</td>
                                 <td><span class="badge-status status-done">${ticket.status}</span></td>
                                 <td>${renderAlmCell(ticket)}</td>
                                 <td>

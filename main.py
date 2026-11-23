@@ -109,7 +109,11 @@ def extract_plain_text_adf(adf_node):
     if adf_node.get("type") == "text":
         return adf_node.get("text", "")
 
-    # 🟢 NOVO: Suporte a nós de Data do Jira ADF (Converte timestamp para formato DD/MM)
+    # 🟢 NOVO: Suporte a nós de Status do Jira ADF (como DONE e ERROR)
+    if adf_node.get("type") == "status":
+        return adf_node.get("attrs", {}).get("text", "")
+
+    # Suporte a nós de Data do Jira ADF
     if adf_node.get("type") == "date":
         timestamp_ms = adf_node.get("attrs", {}).get("timestamp")
         if timestamp_ms:
@@ -913,6 +917,65 @@ def check_double_attachments(issue_raw, description_adf, alm_state, alm_url, iss
     return "Yes"
 
 
+def extract_prd_status_adf(adf_description):
+    """
+    Localiza a tabela no ADF da descrição e varre o cabeçalho 'PRD' para
+    encontrar se existe um elemento de status do Jira marcando 'DONE' ou 'ERROR'.
+    """
+    if not isinstance(adf_description, dict):
+        return "—"
+
+    try:
+        tables = [
+            block for block in adf_description.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "table"
+        ]
+
+        for table in tables:
+            rows = table.get("content", [])
+            for row in rows:
+                if row.get("type") != "tableRow":
+                    continue
+
+                cells = row.get("content", [])
+                if not cells:
+                    continue
+
+                cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+                if "tableHeader" in cell_types:
+                    for idx, cell in enumerate(cells):
+                        header_text = extract_plain_text_adf(cell).upper()
+                        # Verifica se é a coluna PRD
+                        if "PRD" in header_text:
+                            status_val = "—"
+                            
+                            # Varre a célula de cabeçalho para achar o nó 'status'
+                            def find_status_node(node):
+                                nonlocal status_val
+                                if isinstance(node, list):
+                                    for item in node:
+                                        find_status_node(item)
+                                elif isinstance(node, dict):
+                                    if node.get("type") == "status":
+                                        status_val = node.get("attrs", {}).get("text", "").upper().strip()
+                                    for child in node.get("content", []):
+                                        find_status_node(child)
+                                        
+                            find_status_node(cell)
+                            
+                            if status_val == "DONE":
+                                return "Yes"
+                            elif status_val == "ERROR":
+                                return "No"
+                            else:
+                                return "—"
+
+    except Exception as e:
+        print(f"⚠️ Error parsing PRD status: {e}")
+
+    return "—"
+
+
 # =====================================================================
 # 🔄 JIRA REST API v3 INTEGRATION
 # =====================================================================
@@ -970,7 +1033,12 @@ def fetch_jira_data():
             )
 
             labels_lower = [lbl.lower() for lbl in labels]
-            cloud_val = "Service" if "service" in labels_lower else "Sales"
+            if "service" in labels_lower:
+                cloud_val = "Service"
+            elif "sales" in labels_lower:
+                cloud_val = "Sales"
+            else:
+                cloud_val = "—"
 
             # 2. Avaliação das Labels e modo manual
             has_pull_request = "pull-request" in labels_lower
@@ -990,21 +1058,24 @@ def fetch_jira_data():
             )
 
             prd_pr = extract_prd_pr_adf(description_adf)
+            
+            # 🟢 NOVO: Extrai dinamicamente o status do cabeçalho PRD do Jira
+            prd_status = extract_prd_status_adf(description_adf)
 
-            # 3. Carrega os estados da página do Confluence ALM
+            # Carrega os estados da página do Confluence ALM
             alm_state, alm_url = inspect_alm_page_status(description_adf)
 
-            # 4. Checagem dupla de LOGS (Jira <-> Confluence)
+            # Checagem dupla de LOGS (Jira <-> Confluence)
             logs_status = check_double_attachments(issue.raw, description_adf, alm_state, alm_url, issue.key)
 
             if manual_val == "Yes":
                 logs_val = "N/A"
                 pr_to_prod_val = "N/A"
-                pr_validated_val = "N/A"
+                pr_validated_val = "N/A"  # Mantém N/A caso seja manual
             else:
                 logs_val = logs_status
                 pr_to_prod_val = prd_pr if prd_pr else "—"
-                pr_validated_val = "Yes" if prd_pr else "No"
+                pr_validated_val = prd_status  # 🟢 ATUALIZADO: Recebe "Yes", "No" ou "—"
 
             # 5. Carrega o estado do painel SNOW e extrai Sprints do Jira
             snow_state, snow_url, snow_num = inspect_snow_status(description_adf)
