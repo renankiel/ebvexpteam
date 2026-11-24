@@ -1,16 +1,68 @@
-import json
 import os
 import re
+import json
+import copy
 import requests
 from requests.auth import HTTPBasicAuth
+from dotenv import load_dotenv
 
-# Load environment variables
+# Carrega variáveis do arquivo .env
+load_dotenv()
+
+# Configurações do Ambiente
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-CONFLUENCE_SPACE_ID = os.getenv("CONFLUENCE_SPACE_ID", "1048580")
-CONFLUENCE_SPACE_KEY = os.getenv("CONFLUENCE_SPACE_KEY", "CRMB2B")
+CONFLUENCE_SPACE_ID = os.getenv("CONFLUENCE_SPACE_ID")
+CONFLUENCE_SPACE_KEY = os.getenv("CONFLUENCE_SPACE_KEY")
 JIRA_URL = (os.getenv("JIRA_URL") or "").rstrip("/")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_TOKEN = os.getenv("JIRA_TOKEN")
+
+# ID do Template obtido no Confluence
+CONFLUENCE_TEMPLATE_ID = os.getenv("CONFLUENCE_TEMPLATE_ID")
+
+# Cache em memória para evitar requisições redundantes ao Confluence
+_TEMPLATE_CACHE = {}
+
+
+def get_confluence_template_data(template_id=None, force_refresh=False):
+    """
+    Substitui a dependência do 'novo 26.json' local buscando o 
+    template original diretamente no Confluence Cloud via API.
+    """
+    global _TEMPLATE_CACHE
+    tid = str(template_id or CONFLUENCE_TEMPLATE_ID)
+
+    # Se já estiver cacheado e não for forçado o refresh, retorna a cópia limpa do cache
+    if not force_refresh and tid in _TEMPLATE_CACHE:
+        return copy.deepcopy(_TEMPLATE_CACHE[tid])
+
+    # API de templates do Confluence solicitando o formato de documento (ADF)
+    url = f"{JIRA_URL}/wiki/rest/api/template/{tid}?expand=body.atlas_doc_format"
+    auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    headers = {"Accept": "application/json"}
+
+    resp = requests.get(url, auth=auth, headers=headers, timeout=15)
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Erro ao buscar template {tid} no Confluence (Status {resp.status_code}): {resp.text}"
+        )
+
+    data = resp.json()
+    body = data.get("body", {})
+
+    # Tenta obter o corpo do template em Atlassian Document Format (JSON)
+    adf_val = body.get("atlas_doc_format", {}).get("value")
+    if adf_val:
+        adf_dict = json.loads(adf_val) if isinstance(adf_val, str) else adf_val
+        result = {
+            "representation": "atlas_doc_format",
+            "content": adf_dict
+        }
+        # Salva no cache em memória
+        _TEMPLATE_CACHE[tid] = result
+        return copy.deepcopy(result)
+
+    raise ValueError(f"O template {tid} foi encontrado no Confluence, mas seu formato ADF veio vazio.")
 
 
 def replace_placeholders_in_adf(node, repl_dict):
@@ -43,16 +95,15 @@ def replace_placeholders_in_adf(node, repl_dict):
 
 def publish_to_confluence(ticket_data):
     """
-    Loads 'novo 26.json', compiles real ticket data, and creates a page on Confluence.
+    Loads template from Confluence Cloud, compiles real ticket data, and creates a page.
     """
-    template_path = os.path.join(BASE_DIR, "novo 26.json")
-
-    if not os.path.exists(template_path):
-        return {"success": False, "message": f"Template file '{template_path}' not found."}
-
     try:
-        with open(template_path, "r", encoding="utf-8") as f:
-            adf_document = json.load(f)
+        # 🟢 ATUALIZADO: Busca o template diretamente da API do Confluence
+        try:
+            template_data = get_confluence_template_data()
+            adf_document = template_data["content"]
+        except Exception as err:
+            return {"success": False, "message": f"Falha ao obter template online: {str(err)}"}
 
         replacements = {
             "CRMB2B-30977": ticket_data.get("ticket", ""),
@@ -92,8 +143,19 @@ def publish_to_confluence(ticket_data):
         )
 
         if response.status_code in [200, 201]:
-            page_data = response.json()
-            page_url = f"{JIRA_URL}/wiki{page_data.get('_links', {}).get('webui')}"
+            # 🟢 Declaração limpa do json de resposta
+            created_page_data = response.json()
+            created_page_id = created_page_data.get("id")
+            
+            # 🟢 Executa a chamada para definir o formato Wide (Full-Width)
+            if created_page_id:
+                try:
+                    set_confluence_page_full_width(created_page_id)
+                except Exception as e:
+                    print(f"⚠️ Não foi possível aplicar layout Wide: {e}")
+
+            # 🟢 Monta a URL final usando a chave criada com segurança
+            page_url = f"{JIRA_URL}/wiki{created_page_data.get('_links', {}).get('webui')}"
             return {"success": True, "url": page_url}
         else:
             return {
@@ -101,8 +163,40 @@ def publish_to_confluence(ticket_data):
                 "message": f"Confluence API returned status code {response.status_code}: {response.text}"
             }
 
+
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+def set_confluence_page_full_width(page_id):
+    """
+    Define a página criada como Wide (Full-Width) tanto para visualização quanto para edição.
+    Utiliza a API v2 de Content Properties do Confluence Cloud.
+    """
+    if not page_id:
+        return
+
+    prop_url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}/properties"
+    auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    # As duas propriedades oficiais que controlam a largura da página
+    properties_to_set = [
+        {"key": "content-appearance-published", "value": "full-width"},
+        {"key": "content-appearance-draft", "value": "full-width"}
+    ]
+
+    for prop in properties_to_set:
+        try:
+            resp = requests.post(prop_url, json=prop, headers=headers, auth=auth, timeout=10)
+            if resp.status_code not in [200, 201]:
+                # Se já existia, a API pode retornar erro, o que é esperado
+                pass
+        except Exception as e:
+            print(f"⚠️ Erro ao aplicar propriedade {prop['key']} na página {page_id}: {e}")
 
 
 def resolve_confluence_page_id(page_url, ticket_key):
@@ -144,8 +238,6 @@ def resolve_confluence_page_id(page_url, ticket_key):
             return str(results[0].get("id"))
 
     return None
-
-
 
 
 def get_existing_confluence_attachments(page_id):

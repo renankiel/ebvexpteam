@@ -1,6 +1,7 @@
 import os
 import re
 import requests
+from confluence_service import get_confluence_template
 from auth import init_auth, login_required
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
