@@ -383,10 +383,10 @@ def sync_attachments_to_confluence(ticket_key, page_url, attachments_to_sync):
         }
 
 
-def get_tech_activities_expand_from_confluence(force_refresh=False):
+def get_tech_activities_content_from_confluence(force_refresh=False):
     """
-    Busca o conteúdo da página do Confluence (ID 950273) em formato ADF
-    e extrai o bloco 'expand' com título 'Technical Activities'.
+    Busca o conteúdo completo da página do Confluence (ID 950273) em formato ADF
+    e retorna a lista de nós do seu corpo.
     """
     global _TECH_ACTIVITIES_CACHE
     if not force_refresh and _TECH_ACTIVITIES_CACHE:
@@ -407,27 +407,10 @@ def get_tech_activities_expand_from_confluence(force_refresh=False):
 
     adf_doc = json.loads(body_val) if isinstance(body_val, str) else body_val
 
-    # Função interna para encontrar o expand "Technical Activities"
-    def _find_expand(node):
-        if isinstance(node, list):
-            for item in node:
-                res = _find_expand(item)
-                if res:
-                    return res
-        elif isinstance(node, dict):
-            if node.get("type") == "expand":
-                title = node.get("attrs", {}).get("title", "")
-                if title and "technical activities" in title.strip().lower():
-                    return node
-            for child in node.get("content", []):
-                res = _find_expand(child)
-                if res:
-                    return res
-        return None
+    # Pega todos os blocos de primeiro nível da página do Confluence
+    page_content = adf_doc.get("content", [])
+    if not page_content:
+        raise ValueError("A página do Confluence não possui conteúdo no seu documento ADF.")
 
-    expand_node = _find_expand(adf_doc)
-    if not expand_node:
-        raise ValueError("Bloco 'expand' com título 'Technical Activities' não foi encontrado na página 950273.")
-
-    _TECH_ACTIVITIES_CACHE = expand_node
-    return copy.deepcopy(expand_node)
+    _TECH_ACTIVITIES_CACHE = page_content
+    return copy.deepcopy(page_content)

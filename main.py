@@ -1,12 +1,13 @@
 import os
 import re
 import requests
+import copy
 from confluence_service import get_confluence_template
-from confluence_publisher import get_tech_activities_expand_from_confluence
+from confluence_publisher import get_tech_activities_content_from_confluence
 from auth import init_auth, login_required
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session
 from jira import JIRA
 
 # =====================================================================
@@ -1004,18 +1005,35 @@ def has_technical_activities_expand(adf_node):
     return False
 
 
-def append_technical_activities_to_jira_issue(ticket_key):
+def append_technical_activities_to_jira_issue(ticket_key, github_username=None):
     """
-    Obtém a descrição atual do ticket no Jira, anexa o bloco expand
-    'Technical Activities' obtido da página do Confluence e atualiza o ticket via Jira REST API v3.
+    Busca o conteúdo da página do Confluence, substitui as variáveis [eisid], [ticket], [subject],
+    empacota em um nó 'expand' limpo e atualiza o ticket no Jira.
     """
-    # 1. Busca o bloco expand oficial do Confluence
-    expand_block = get_tech_activities_expand_from_confluence()
-    if not expand_block:
-        raise ValueError("Bloco 'Technical Activities' não foi encontrado na página do Confluence.")
+    # 🟢 1. CAPTURA ROBUSTA DO GITHUB USERNAME (olha todas as chaves possíveis da session)
+    if not github_username:
+        user_dict = session.get("user") or {}
+        github_username = (
+            session.get("github_username")
+            or session.get("github_user")
+            or session.get("exp_github_username")
+            or user_dict.get("github_username")
+            or user_dict.get("github_user")
+            or user_dict.get("github_handle")
+            or user_dict.get("location")
+            or ""
+        )
 
-    # 2. Busca a descrição atual da issue no Jira
-    issue_url = f"{JIRA_URL}/rest/api/3/issue/{ticket_key}?fields=description"
+    # Limpa @ e espaços em branco
+    github_username = str(github_username).strip()
+    if github_username.startswith("@"):
+        github_username = github_username[1:].strip()
+
+    # Log no terminal do VSCode para você auditar exatamente o que foi capturado
+    print(f"🔍 [DEBUG] Ticket: {ticket_key} | GitHub detectado: '{github_username}' | Session keys: {list(session.keys())}")
+
+    # 2. Busca a issue no Jira (description e summary)
+    issue_url = f"{JIRA_URL}/rest/api/3/issue/{ticket_key}?fields=description,summary"
     auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
@@ -1024,13 +1042,58 @@ def append_technical_activities_to_jira_issue(ticket_key):
         raise RuntimeError(f"Erro ao buscar issue {ticket_key} no Jira: {get_resp.status_code}")
 
     issue_data = get_resp.json()
+    summary = issue_data.get("fields", {}).get("summary", "")
     current_desc = issue_data.get("fields", {}).get("description")
 
-    # Garante estrutura básica padrão de documento ADF
+    # 3. Busca os blocos da página do Confluence
+    confluence_blocks = get_tech_activities_content_from_confluence()
+
+    # 🟢 4. MAPEAMENTO E SUBSTITUIÇÃO CASE-INSENSITIVE
+    replacements = {
+        r"\[eisid\]": github_username,
+        r"\[ticket\]": ticket_key,
+        r"\[subject\]": summary
+    }
+
+    def _replace_in_text(text):
+        if not isinstance(text, str):
+            return text
+        for pattern, rep_val in replacements.items():
+            text = re.sub(pattern, str(rep_val or ""), text, flags=re.IGNORECASE)
+        return text
+
+    def _traverse_and_replace(node):
+        if not node:
+            return node
+        if isinstance(node, list):
+            return [_traverse_and_replace(item) for item in node]
+        elif isinstance(node, dict):
+            new_node = {}
+            for k, v in node.items():
+                if k == "text" and isinstance(v, str):
+                    new_node[k] = _replace_in_text(v)
+                elif isinstance(v, (dict, list)):
+                    new_node[k] = _traverse_and_replace(v)
+                else:
+                    new_node[k] = v
+            return new_node
+        return node
+
+    customized_blocks = _traverse_and_replace(copy.deepcopy(confluence_blocks))
+
+    # 5. Cria o expand nativo limpo
+    clean_expand_node = {
+        "type": "expand",
+        "attrs": {
+            "title": "Technical Activities"
+        },
+        "content": customized_blocks
+    }
+
+    # 6. Prepara o documento de descrição
     if not current_desc or not isinstance(current_desc, dict):
         current_desc = {"type": "doc", "version": 1, "content": []}
 
-    # 3. Limpa qualquer expand 'Technical Activities' pré-existente para não duplicar
     clean_content = []
     for c in current_desc.get("content", []):
         if c.get("type") == "expand":
@@ -1039,22 +1102,46 @@ def append_technical_activities_to_jira_issue(ticket_key):
                 continue
         clean_content.append(c)
 
-    # 4. Anexa o bloco original do Confluence
-    clean_content.append(expand_block)
+    clean_content.append(clean_expand_node)
     current_desc["content"] = clean_content
 
-    # 5. Envia o PUT para atualizar a descrição no Jira
-    put_payload = {
-        "fields": {
-            "description": current_desc
-        }
-    }
-
+    # 7. PUT no Jira
+    put_payload = {"fields": {"description": current_desc}}
     put_resp = requests.put(issue_url, auth=auth, headers=headers, json=put_payload, timeout=20)
     if put_resp.status_code not in (200, 204):
         raise RuntimeError(f"Erro ao atualizar ticket {ticket_key} no Jira: {put_resp.status_code} - {put_resp.text}")
 
     return True
+
+
+
+def replace_adf_placeholders(node, replacements):
+    """
+    Percorre recursivamente a árvore do ADF e substitui as variáveis
+    definidas em 'replacements' (ex: {'[ticket]': 'CRMB2B-123'}) em todos os nós de texto.
+    """
+    if not node:
+        return node
+
+    if isinstance(node, list):
+        return [replace_adf_placeholders(item, replacements) for item in node]
+
+    elif isinstance(node, dict):
+        new_node = {}
+        for key, val in node.items():
+            if key == "text" and isinstance(val, str):
+                text_val = val
+                for placeholder, rep_val in replacements.items():
+                    if placeholder in text_val:
+                        text_val = text_val.replace(placeholder, str(rep_val or ""))
+                new_node[key] = text_val
+            elif isinstance(val, (dict, list)):
+                new_node[key] = replace_adf_placeholders(val, replacements)
+            else:
+                new_node[key] = val
+        return new_node
+
+    return node
 
 
 # =====================================================================
@@ -1555,11 +1642,14 @@ def api_add_technical_activities():
         return jsonify({"success": False, "error": "Ticket não informado."}), 400
 
     try:
-        append_technical_activities_to_jira_issue(ticket_key)
+        # Pega o github username da sessão do usuário autenticado
+        gh_user = session.get("github_username") or session.get("github_user") or ""
+        append_technical_activities_to_jira_issue(ticket_key, github_username=gh_user)
         return jsonify({"success": True, "message": f"Technical Activities adicionado ao ticket {ticket_key}!"})
     except Exception as e:
         print(f"⚠️ Erro ao adicionar Technical Activities: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 if __name__ == "__main__":
