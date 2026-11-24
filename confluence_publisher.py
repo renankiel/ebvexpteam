@@ -13,6 +13,7 @@ load_dotenv()
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFLUENCE_SPACE_ID = os.getenv("CONFLUENCE_SPACE_ID")
 CONFLUENCE_SPACE_KEY = os.getenv("CONFLUENCE_SPACE_KEY")
+CONFLUENCE_TECH_ACTIVITIES_ID = os.getenv("CONFLUENCE_TECH_ACTIVITIES_ID", "950273")
 JIRA_URL = (os.getenv("JIRA_URL") or "").rstrip("/")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 JIRA_TOKEN = os.getenv("JIRA_TOKEN")
@@ -22,7 +23,7 @@ CONFLUENCE_TEMPLATE_ID = os.getenv("CONFLUENCE_TEMPLATE_ID")
 
 # Cache em memória para evitar requisições redundantes ao Confluence
 _TEMPLATE_CACHE = {}
-
+_TECH_ACTIVITIES_CACHE = None
 
 def get_confluence_template_data(template_id=None, force_refresh=False):
     """
@@ -380,3 +381,53 @@ def sync_attachments_to_confluence(ticket_key, page_url, attachments_to_sync):
             "success": False,
             "message": str(e)
         }
+
+
+def get_tech_activities_expand_from_confluence(force_refresh=False):
+    """
+    Busca o conteúdo da página do Confluence (ID 950273) em formato ADF
+    e extrai o bloco 'expand' com título 'Technical Activities'.
+    """
+    global _TECH_ACTIVITIES_CACHE
+    if not force_refresh and _TECH_ACTIVITIES_CACHE:
+        return copy.deepcopy(_TECH_ACTIVITIES_CACHE)
+
+    url = f"{JIRA_URL}/wiki/api/v2/pages/{CONFLUENCE_TECH_ACTIVITIES_ID}?body-format=atlas_doc_format"
+    auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    headers = {"Accept": "application/json"}
+
+    resp = requests.get(url, auth=auth, headers=headers, timeout=15)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Erro ao buscar página {CONFLUENCE_TECH_ACTIVITIES_ID} no Confluence: {resp.status_code} - {resp.text}")
+
+    page_data = resp.json()
+    body_val = page_data.get("body", {}).get("atlas_doc_format", {}).get("value")
+    if not body_val:
+        raise ValueError("O corpo da página do Confluence veio vazio ou não está em formato ADF.")
+
+    adf_doc = json.loads(body_val) if isinstance(body_val, str) else body_val
+
+    # Função interna para encontrar o expand "Technical Activities"
+    def _find_expand(node):
+        if isinstance(node, list):
+            for item in node:
+                res = _find_expand(item)
+                if res:
+                    return res
+        elif isinstance(node, dict):
+            if node.get("type") == "expand":
+                title = node.get("attrs", {}).get("title", "")
+                if title and "technical activities" in title.strip().lower():
+                    return node
+            for child in node.get("content", []):
+                res = _find_expand(child)
+                if res:
+                    return res
+        return None
+
+    expand_node = _find_expand(adf_doc)
+    if not expand_node:
+        raise ValueError("Bloco 'expand' com título 'Technical Activities' não foi encontrado na página 950273.")
+
+    _TECH_ACTIVITIES_CACHE = expand_node
+    return copy.deepcopy(expand_node)

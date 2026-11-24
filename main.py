@@ -2,6 +2,7 @@ import os
 import re
 import requests
 from confluence_service import get_confluence_template
+from confluence_publisher import get_tech_activities_expand_from_confluence
 from auth import init_auth, login_required
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
@@ -979,6 +980,83 @@ def extract_prd_status_adf(adf_description):
     return "—"
 
 
+def has_technical_activities_expand(adf_node):
+    """
+    Varre recursivamente o ADF da descrição procurando por um elemento
+    'expand' com o título 'Technical Activities'.
+    """
+    if not adf_node:
+        return False
+
+    if isinstance(adf_node, list):
+        for item in adf_node:
+            if has_technical_activities_expand(item):
+                return True
+    elif isinstance(adf_node, dict):
+        if adf_node.get("type") == "expand":
+            title = adf_node.get("attrs", {}).get("title", "")
+            if title and "technical activities" in title.strip().lower():
+                return True
+        for child in adf_node.get("content", []):
+            if has_technical_activities_expand(child):
+                return True
+
+    return False
+
+
+def append_technical_activities_to_jira_issue(ticket_key):
+    """
+    Obtém a descrição atual do ticket no Jira, anexa o bloco expand
+    'Technical Activities' obtido da página do Confluence e atualiza o ticket via Jira REST API v3.
+    """
+    # 1. Busca o bloco expand oficial do Confluence
+    expand_block = get_tech_activities_expand_from_confluence()
+    if not expand_block:
+        raise ValueError("Bloco 'Technical Activities' não foi encontrado na página do Confluence.")
+
+    # 2. Busca a descrição atual da issue no Jira
+    issue_url = f"{JIRA_URL}/rest/api/3/issue/{ticket_key}?fields=description"
+    auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
+    get_resp = requests.get(issue_url, auth=auth, headers=headers, timeout=15)
+    if get_resp.status_code != 200:
+        raise RuntimeError(f"Erro ao buscar issue {ticket_key} no Jira: {get_resp.status_code}")
+
+    issue_data = get_resp.json()
+    current_desc = issue_data.get("fields", {}).get("description")
+
+    # Garante estrutura básica padrão de documento ADF
+    if not current_desc or not isinstance(current_desc, dict):
+        current_desc = {"type": "doc", "version": 1, "content": []}
+
+    # 3. Limpa qualquer expand 'Technical Activities' pré-existente para não duplicar
+    clean_content = []
+    for c in current_desc.get("content", []):
+        if c.get("type") == "expand":
+            title = c.get("attrs", {}).get("title", "")
+            if "technical activities" in title.lower():
+                continue
+        clean_content.append(c)
+
+    # 4. Anexa o bloco original do Confluence
+    clean_content.append(expand_block)
+    current_desc["content"] = clean_content
+
+    # 5. Envia o PUT para atualizar a descrição no Jira
+    put_payload = {
+        "fields": {
+            "description": current_desc
+        }
+    }
+
+    put_resp = requests.put(issue_url, auth=auth, headers=headers, json=put_payload, timeout=20)
+    if put_resp.status_code not in (200, 204):
+        raise RuntimeError(f"Erro ao atualizar ticket {ticket_key} no Jira: {put_resp.status_code} - {put_resp.text}")
+
+    return True
+
+
 # =====================================================================
 # 🔄 JIRA REST API v3 INTEGRATION
 # =====================================================================
@@ -986,6 +1064,7 @@ def fetch_jira_data():
     candidates_groups = {}
     done_list = []
     ready_prod_list = []
+    pending_ta_list = []
 
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_TOKEN or not JIRA_PROJECT_KEY:
         print("⚠️ Error: Jira credentials missing or incomplete in .env!")
@@ -1136,9 +1215,17 @@ def fetch_jira_data():
             elif current_status == "READY FOR PRODUCTION":
                 ready_prod_list.append(ticket_obj)
             else:
-                if sprint_name not in candidates_groups:
-                    candidates_groups[sprint_name] = []
-                candidates_groups[sprint_name].append(ticket_obj)
+                # 🟢 REGRA DE TECHNICAL ACTIVITIES:
+                has_ta = has_technical_activities_expand(description_adf)
+                
+                if not has_ta:
+                    # Sem Technical Activities -> Vai para os badges acima da tabela
+                    pending_ta_list.append(ticket_obj)
+                else:
+                    # Com Technical Activities -> Entra normalmente na tabela de Candidates
+                    if sprint_name not in candidates_groups:
+                        candidates_groups[sprint_name] = []
+                    candidates_groups[sprint_name].append(ticket_obj)
 
         # 🟢 ORDENAÇÃO DE CANDIDATES (Sprints)
         sorted_candidate_group_names = sorted(
@@ -1224,7 +1311,7 @@ def fetch_jira_data():
             ]
 
         # Retorna ambos os dados de gráfico
-        return formatted_candidates, done_list, formatted_ready_prod, chart_data, candidates_chart_data
+        return formatted_candidates, done_list, formatted_ready_prod, chart_data, candidates_chart_data, pending_ta_list
 
     except Exception as error:
         print(f"⚠️ Error connecting to Jira API: {error}")
@@ -1234,7 +1321,7 @@ def fetch_jira_data():
                 "tickets": []
             }
         ]
-        return error_group, [], [], {"labels": [], "counts": []}, {"labels": [], "counts": []}
+        return error_group, [], [], {"labels": [], "counts": []}, {"labels": [], "counts": []}, []
 
 
 # =====================================================================
@@ -1243,7 +1330,7 @@ def fetch_jira_data():
 @app.route("/")
 @login_required
 def home():
-    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data, pending_ta = fetch_jira_data()
 
     return render_template(
         "index.html",
@@ -1252,6 +1339,7 @@ def home():
         done_tickets=done_data,
         chart_data=chart_data,
         candidates_chart_data=candidates_chart_data,
+        pending_ta_tickets=pending_ta,
         jira_url=JIRA_URL or "https://atlassian.net"
     )
 
@@ -1259,14 +1347,15 @@ def home():
 @app.route("/api/refresh", methods=["GET"])
 @login_required
 def api_refresh():
-    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data = fetch_jira_data()  # 🟢 Atualizado
+    candidates_data, done_data, ready_prod_data, chart_data, candidates_chart_data, pending_ta = fetch_jira_data()
     return jsonify({
         "success": True,
         "candidates": candidates_data,
         "ready_prod_tickets": ready_prod_data,  # 🟢 Retornando dinamicamente para o JS
         "done_tickets": done_data,
         "chart_data": chart_data,
-        "candidates_chart_data": candidates_chart_data
+        "candidates_chart_data": candidates_chart_data,
+        "pending_ta_tickets": pending_ta
     })
 
 
@@ -1454,6 +1543,23 @@ def create_snow(ticket_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/add-technical-activities", methods=["POST"])
+@login_required
+def api_add_technical_activities():
+    data = request.get_json() or {}
+    ticket_key = data.get("ticket")
+
+    if not ticket_key:
+        return jsonify({"success": False, "error": "Ticket não informado."}), 400
+
+    try:
+        append_technical_activities_to_jira_issue(ticket_key)
+        return jsonify({"success": True, "message": f"Technical Activities adicionado ao ticket {ticket_key}!"})
+    except Exception as e:
+        print(f"⚠️ Erro ao adicionar Technical Activities: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":

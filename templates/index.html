@@ -151,6 +151,32 @@
 
         <!-- TAB 2: Candidates -->
         <div id="candidates" class="tab-content">
+            <!-- 🟢 Badges de Tickets sem Technical Activities -->
+            {% if pending_ta_tickets and pending_ta_tickets|length > 0 %}
+            <div id="pending-ta-section" class="pending-ta-container" style="margin-bottom: 24px;">
+                <div style="font-size: 11px; font-weight: 700; color: #8c8c8c; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <span style="color: #e2445c;">⚠️</span>
+                    <span id="pending-ta-title">Pendente de Technical Activities (<span id="pending-ta-count">{{ pending_ta_tickets|length }}</span>)</span>
+                </div>
+                
+                <div id="pending-ta-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    {% for t in pending_ta_tickets %}
+                    <div id="badge-{{ t.ticket }}" 
+                         onclick="applyTechnicalActivities('{{ t.ticket }}', this)" 
+                         title="Clique para adicionar Technical Activities ao ticket no Jira"
+                         style="cursor: pointer; background: #1c1d1f; border: 1px solid #323338; border-radius: 6px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 8px; transition: border-color 0.2s, background 0.2s;"
+                         onmouseover="this.style.borderColor='#0086c0'; this.style.background='#252629';"
+                         onmouseout="this.style.borderColor='#323338'; this.style.background='#1c1d1f';">
+                        
+                        <span style="color: #579bfc; font-size: 12px; font-weight: 700;">{{ t.ticket }}</span>
+                        <span style="color: #a3a3a3; font-size: 11px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ t.description }}">{{ t.description }}</span>
+                        <span class="badge-tag" style="background: rgba(226, 68, 92, 0.2); color: #e2445c; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(226, 68, 92, 0.4);">+ Add TA</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}            
+
             <div class="table-title candidates-title">Candidates</div>
             <div class="table-responsive">
                 <table class="jira-table" id="candidates-table">
@@ -967,6 +993,70 @@
             });
         }
 
+        function applyTechnicalActivities(ticketKey, element) {
+            if (element.dataset.loading === "true") return;
+        
+            if (!confirm(`Deseja adicionar o Technical Activities do Confluence ao ticket ${ticketKey} no Jira?`)) {
+                return;
+            }
+        
+            element.dataset.loading = "true";
+            const tag = element.querySelector('.badge-tag');
+            const originalText = tag.textContent;
+            tag.textContent = "Gravando...";
+            element.style.opacity = "0.6";
+        
+            fetch('/api/add-technical-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticket: ticketKey })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove o badge clicado visualmente
+                    element.style.transition = "all 0.3s ease";
+                    element.style.transform = "scale(0.8)";
+                    element.style.opacity = "0";
+        
+                    setTimeout(() => {
+                        element.remove();
+                        
+                        // Atualiza o contador de badges pendentes
+                        const countElem = document.getElementById('pending-ta-count');
+                        if (countElem) {
+                            let currentCount = parseInt(countElem.textContent) - 1;
+                            countElem.textContent = currentCount;
+                            if (currentCount <= 0) {
+                                const sec = document.getElementById('pending-ta-section');
+                                if (sec) sec.style.display = 'none';
+                            }
+                        }
+        
+                        // Dispara o refresh automático do board para o ticket entrar na tabela de Candidates
+                        if (typeof refreshBoardData === "function") {
+                            refreshBoardData();
+                        } else if (typeof fetchBoardData === "function") {
+                            fetchBoardData();
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 300);
+                } else {
+                    alert("Erro: " + (data.error || "Não foi possível atualizar o ticket no Jira."));
+                    tag.textContent = originalText;
+                    element.style.opacity = "1";
+                    element.dataset.loading = "false";
+                }
+            })
+            .catch(err => {
+                alert("Erro de conexão ao atualizar ticket.");
+                tag.textContent = originalText;
+                element.style.opacity = "1";
+                element.dataset.loading = "false";
+            });
+        }
+        
         // Chart.js - Monday Carbon Bar Chart (Gráfico de Barras)
         const ctx = document.getElementById('productionChart').getContext('2d');
         const productionChart = new Chart(ctx, {
