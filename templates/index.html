@@ -154,10 +154,11 @@
             <!-- 🟢 Badges de Tickets sem Technical Activities -->
             {% if pending_ta_tickets and pending_ta_tickets|length > 0 %}
             <div id="pending-ta-section" class="pending-ta-container" style="margin-bottom: 24px;">
-                <div style="font-size: 11px; font-weight: 700; color: #8c8c8c; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <div class="table-title candidates-title">Technical Activities Creation</div>
+                <!--<div style="font-size: 11px; font-weight: 700; color: #8c8c8c; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
                     <span style="color: #e2445c;">⚠️</span>
-                    <span id="pending-ta-title">Pendente de Technical Activities (<span id="pending-ta-count">{{ pending_ta_tickets|length }}</span>)</span>
-                </div>
+                    <span id="pending-ta-title">Technical Activities Pending Creation (<span id="pending-ta-count">{{ pending_ta_tickets|length }}</span>)</span>
+                </div>-->
                 
                 <div id="pending-ta-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
                     {% for t in pending_ta_tickets %}
@@ -170,7 +171,7 @@
                         
                         <span style="color: #579bfc; font-size: 12px; font-weight: 700;">{{ t.ticket }}</span>
                         <span style="color: #a3a3a3; font-size: 11px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ t.description }}">{{ t.description }}</span>
-                        <span class="badge-tag" style="background: rgba(226, 68, 92, 0.2); color: #e2445c; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(226, 68, 92, 0.4);">+ Add TA</span>
+                        <span class="badge-tag" style="background: rgba(226, 68, 92, 0.2); color: #e2445c; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(226, 68, 92, 0.4);">+ add tech</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -202,7 +203,7 @@
                     <tbody id="candidates-tbody">
                         {% for group in candidates %}
                             <tr class="row-candidates">
-                                <td colspan="14">{{ group.version }}</td>
+                                <td colspan="15">{{ group.version }}</td>
                             </tr>
                             {% for ticket in group.tickets %}
                                 <tr>
