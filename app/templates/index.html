@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jira - Board & Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="jira-container">
+        <!-- Jira Style Header -->
+        <header class="jira-header">
+            <div class="project-info">
+                <span class="project-avatar">EXP</span>
+                <div>
+                    <h1>EBV Experience Team</h1>
+                    <p class="subtitle">BVISTA DEVELOPMENT Board</p>
+                </div>
+            </div>
+            
+            <!-- Header Actions container -->
+            <div class="header-actions">
+                <!-- Global AJAX Refresh Button -->
+                <button id="global-refresh-btn" onclick="refreshBoardData()" class="btn-icon" title="Refresh Board Data">
+                    <svg id="refresh-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                </button>
+
+                <!-- User Profile Section -->
+                <div class="user-profile-container">
+                    <!-- Avatar Button (Same size and style as the refresh button) -->
+                    <button class="avatar-btn" onclick="toggleProfileDropdown(event)" title="View Profile">
+                        {% if session.get('user', {}).get('picture') %}
+                            <img src="{{ session['user']['picture'] }}" alt="Avatar" referrerpolicy="no-referrer">
+                        {% else %}
+                            <!-- Fallback: Letra inicial do nome -->
+                            <span class="avatar-fallback">{{ session.get('user', {}).get('name', 'U')[0] | upper }}</span>
+                        {% endif %}
+                    </button>
+
+                    <!-- Profile Dropdown (Atualizado com Estilo de Botão Escuro e Ícone de Salvar) -->
+                    <div id="profile-dropdown" class="profile-dropdown" onclick="event.stopPropagation()">
+                        <div class="dropdown-header">
+                            <span class="dropdown-name">{{ session.get('user', {}).get('name', 'User') }}</span>
+                            <span class="dropdown-email">{{ session.get('user', {}).get('email', '') }}</span>
+                            
+                            {% set gh_user = session.get('user', {}).get('github', '') %}
+                            
+                            <!-- Exibição do @ (Visível quando já existe um @ salvo) -->
+                            <div id="github-display-row" style="display: {{ 'flex' if gh_user else 'none' }}; align-items: center; justify-content: space-between; margin-top: 6px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+                                    </svg>
+                                    <span style="color: #a3a3a3; font-size: 12px;">
+                                        github: <strong id="github-display-text" style="color: #ffffff;">@{{ gh_user }}</strong>
+                                    </span>
+                                </div>
+                                
+                                <!-- Botãozinho de Lápis (Editar) idêntico ao padrão de botão escuro -->
+                                <button onclick="showGithubEditBox(event)" title="Atualizar @ do GitHub"
+                                        style="background: #1c1d1f; border: 1px solid #323338; color: #d0d0d0; border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;"
+                                        onmouseover="this.style.background='#323338'; this.style.borderColor='#46474c';"
+                                        onmouseout="this.style.background='#1c1d1f'; this.style.borderColor='#323338';">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 20h9"></path>
+                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Formulário de Cadastro / Edição -->
+                            <div id="github-edit-box" style="display: {{ 'none' if gh_user else 'flex' }}; flex-direction: column; gap: 6px; margin-top: 8px;">
+                                <label style="color: #8c8c8c; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;">
+                                    {{ 'ATUALIZAR @ DO GITHUB' if gh_user else 'INFORME SEU @ DO GITHUB' }}
+                                </label>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <input type="text" id="github-user-input" 
+                                        value="{{ gh_user }}" 
+                                        placeholder="Ex: rxk566" 
+                                        style="background: #111213; border: 1px solid #323338; color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 12px; height: 26px; box-sizing: border-box; width: 100%; outline: none;">
+                                    
+                                    <!-- Botão Salvar Estilizado como o de Refresh (26px centralizado) -->
+                                    <button id="github-save-btn" onclick="saveGithubUser(event)" title="Salvar Usuário"
+                                            style="background: #1c1d1f; border: 1px solid #323338; color: #d0d0d0; padding: 0; border-radius: 4px; width: 26px; height: 26px; min-width: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;"
+                                            onmouseover="this.style.background='#323338'; this.style.borderColor='#46474c';"
+                                            onmouseout="this.style.background='#1c1d1f'; this.style.borderColor='#323338';">
+                                        
+                                        <!-- Container do Ícone (Substituído por SPAN para evitar aninhamento de SVGs) -->
+                                        <span id="github-save-icon" style="display: flex; align-items: center; justify-content: center; transition: transform 0.15s; width: 14px; height: 14px;">
+                                            <!-- Ícone de Disquete (14px) -->
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                                <polyline points="7 3 7 8 15 8"></polyline>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <a href="{{ url_for('auth.logout') }}" class="dropdown-logout">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            Sair / Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 4-Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" id="tab-dashboard-btn" onclick="openTab(event, 'dashboard')">Dashboard</button>
+            <button class="tab-button" id="tab-candidates-btn" onclick="openTab(event, 'candidates')">Candidates</button>
+            <button class="tab-button" id="tab-ready-for-production-btn" onclick="openTab(event, 'ready-for-production')">Ready for Production</button>
+            <button class="tab-button" id="tab-done-btn" onclick="openTab(event, 'done')">Done</button>
+        </div>
+
+        <!-- TAB 1: Dashboard (Dois Gráficos Lado a Lado) -->
+        <div id="dashboard" class="tab-content active">
+            <section class="metrics-section">
+                <!-- Gráfico Esquerdo: Deploys por Data de Call -->
+                <div class="metric-card">
+                    <h3>Tickets Ready for Production by Day</h3>
+                    <div class="chart-container">
+                        <canvas id="productionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico Direito: Candidates por Status (Barras Horizontais) -->
+                <div class="metric-card">
+                    <h3>Candidate Tickets by Status</h3>
+                    <div class="chart-container">
+                        <canvas id="candidatesStatusChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB 2: Candidates -->
+        <div id="candidates" class="tab-content">
+            <!-- 🟢 Badges de Tickets sem Technical Activities -->
+            {% if pending_ta_tickets and pending_ta_tickets|length > 0 %}
+            <div id="pending-ta-section" class="pending-ta-container" style="margin-bottom: 24px;">
+                <div class="table-title candidates-title">Technical Activities Creation</div>
+                <!--<div style="font-size: 11px; font-weight: 700; color: #8c8c8c; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <span style="color: #e2445c;">⚠️</span>
+                    <span id="pending-ta-title">Technical Activities Pending Creation (<span id="pending-ta-count">{{ pending_ta_tickets|length }}</span>)</span>
+                </div>-->
+                
+                <div id="pending-ta-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    {% for t in pending_ta_tickets %}
+                    <div id="badge-{{ t.ticket }}" 
+                         onclick="applyTechnicalActivities('{{ t.ticket }}', this)" 
+                         title="Clique para adicionar Technical Activities ao ticket no Jira"
+                         style="cursor: pointer; background: #1c1d1f; border: 1px solid #323338; border-radius: 6px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 8px; transition: border-color 0.2s, background 0.2s;"
+                         onmouseover="this.style.borderColor='#0086c0'; this.style.background='#252629';"
+                         onmouseout="this.style.borderColor='#323338'; this.style.background='#1c1d1f';">
+                        
+                        <span style="color: #579bfc; font-size: 12px; font-weight: 700;">{{ t.ticket }}</span>
+                        <span style="color: #a3a3a3; font-size: 11px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ t.description }}">{{ t.description }}</span>
+                        <span class="badge-tag" style="background: rgba(226, 68, 92, 0.2); color: #e2445c; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(226, 68, 92, 0.4);">+ add tech</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}            
+
+            <div class="table-title candidates-title">Candidates</div>
+            <div class="table-responsive">
+                <table class="jira-table" id="candidates-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>ALM Page</th>
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified Column Header -->
+                            <th>ALM Call</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody id="candidates-tbody">
+                        {% for group in candidates %}
+                            <tr class="row-candidates">
+                                <td colspan="15">{{ group.version }}</td>
+                            </tr>
+                            {% for ticket in group.tickets %}
+                                <tr>
+                                    <!-- 3-State SNOW Column -->
+                                    <td>
+                                        <div id="snow-container-{{ ticket.ticket }}">
+                                            {% if ticket.snow_state == 'exists' %}
+                                                <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                    {{ ticket.snow_number }}
+                                                </a>
+                                            {% elif ticket.snow_state == 'ready' %}
+                                                <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create SNOW
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text" title="No SNOW Info Panel in description">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+
+                                    <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                    <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                    <td>
+                                        {% if ticket.cloud == '—' or not ticket.cloud %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td><span class="badge-status status-{{ ticket.status_lower_dashed }}">{{ ticket.status }}</span></td>
+
+                                    <!-- 3-State ALM Page Column (Icon Buttons for View & Update) -->
+                                    <td>
+                                        <div id="alm-container-{{ ticket.ticket }}">
+                                            {% if ticket.alm_page_state == 'exists' %}
+                                                <div class="alm-action-group">
+                                                    <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                            <circle cx="12" cy="12" r="3"></circle>
+                                                        </svg>
+                                                    </a>
+                                                    <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                        <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                                            <polyline points="1 20 1 14 7 14"></polyline>
+                                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            {% elif ticket.alm_page_state == 'ready' %}
+                                                <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create page
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text" title="No ALM PAGE Info Panel or Table in description">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
+                                            {{ ticket.assignee }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if ticket.manual == 'Yes' %}
+                                            <span class="badge-yn yes">Yes</span>
+                                        {% elif ticket.manual == 'No' %}
+                                            <span class="badge-yn no">No</span>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.logs == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_validated == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <!-- 🟢 Unified SIGNOFF Column -->
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                            <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                            <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ ticket.alm_call }}</td>
+                                    <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                    <td>{{ ticket.change_hour }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: Ready for Production -->
+        <div id="ready-for-production" class="tab-content">
+            <div class="table-title ready-title">Ready for Production</div>
+            <div class="table-responsive">
+                <table class="jira-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>ALM Page</th>
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified -->
+                            <th>ALM Call</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ready-prod-tbody">
+                        {% for group in ready_prod_tickets %}
+                            <tr class="version-row">
+                                <td colspan="15">{{ group.version }}</td>
+                            </tr>
+                            {% for ticket in group.tickets %}
+                                <tr class="row-ready">
+                                    <td>
+                                        <div id="snow-container-{{ ticket.ticket }}">
+                                            {% if ticket.snow_state == 'exists' %}
+                                                <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                    {{ ticket.snow_number }}
+                                                </a>
+                                            {% elif ticket.snow_state == 'ready' %}
+                                                <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create SNOW
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                    <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                    <td>
+                                        {% if ticket.cloud == '—' or not ticket.cloud %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge-status status-ready-for-production">{{ ticket.status }}</span></td>
+                                    <td>
+                                        <div id="alm-container-{{ ticket.ticket }}">
+                                            {% if ticket.alm_page_state == 'exists' %}
+                                                <div class="alm-action-group">
+                                                    <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                            <circle cx="12" cy="12" r="3"></circle>
+                                                        </svg>
+                                                    </a>
+                                                    <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                        <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                                            <polyline points="1 20 1 14 7 14"></polyline>
+                                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            {% elif ticket.alm_page_state == 'ready' %}
+                                                <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                    Create page
+                                                </button>
+                                            {% else %}
+                                                <span class="no-panel-text">—</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
+                                            {{ ticket.assignee }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if ticket.manual == 'Yes' %}
+                                            <span class="badge-yn yes">Yes</span>
+                                        {% elif ticket.manual == 'No' %}
+                                            <span class="badge-yn no">No</span>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.logs == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.pr_validated == 'N/A' %}
+                                            <span class="badge-yn na">N/A</span>
+                                        {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                            <span class="no-panel-text">—</span>
+                                        {% else %}
+                                            <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                            <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                            <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                        </div>
+                                    </td>
+                                    
+                                    <td>{{ ticket.alm_call }}</td>
+
+                                    <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                    <td>{{ ticket.change_hour }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 4: Done -->
+        <div id="done" class="tab-content">
+            <div class="table-title done-title">Done</div>
+            <div class="table-responsive">
+                <table class="jira-table">
+                    <thead>
+                        <tr>
+                            <th>Snow</th>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            <th>Cloud</th>
+                            <th>Status</th>
+                            <th>ALM Page</th>
+                            <th>Assignee</th>
+                            <th>Manual?</th>
+                            <th>Logs?</th>
+                            <th>PR to Prod</th>
+                            <th>PR Validated?</th>
+                            <th>Signoff?</th> <!-- 🟢 Unified -->
+                            <th>ALM Call</th>
+                            <th>Execution Order</th>
+                            <th>Change Hour</th>
+                        </tr>
+                    </thead>
+                    <tbody id="done-tbody">
+                        {% for ticket in done_tickets %}
+                            <tr>
+                                <td>
+                                    <div id="snow-container-{{ ticket.ticket }}">
+                                        {% if ticket.snow_state == 'exists' %}
+                                            <a href="{{ ticket.snow_url }}" target="_blank" class="confluence-link-success">
+                                                {{ ticket.snow_number }}
+                                            </a>
+                                        {% elif ticket.snow_state == 'ready' %}
+                                            <button onclick="createSnowChange('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create SNOW
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td><a href="{{ jira_url }}/browse/{{ ticket.ticket }}" target="_blank" class="ticket-link">{{ ticket.ticket }}</a></td>
+                                <td><span class="badge-type {{ ticket.type_lower }}">{{ ticket.type }}</span></td>
+                                <td>
+                                    {% if ticket.cloud == '—' or not ticket.cloud %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
+                                        <span class="badge-cloud {{ ticket.cloud_lower }}">{{ ticket.cloud }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge-status status-done">{{ ticket.status }}</span></td>
+                                <td>
+                                    <div id="alm-container-{{ ticket.ticket }}">
+                                        {% if ticket.alm_page_state == 'exists' %}
+                                            <div class="alm-action-group">
+                                                <a href="{{ ticket.alm_page_url }}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                </a>
+                                                <button id="update-alm-btn-{{ ticket.ticket }}" onclick="updateConfluencePage('{{ ticket.ticket }}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                                                    <svg id="update-alm-icon-{{ ticket.ticket }}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        {% elif ticket.alm_page_state == 'ready' %}
+                                            <button onclick="createConfluencePage('{{ ticket.ticket }}')" class="btn-confluence">
+                                                Create page
+                                            </button>
+                                        {% else %}
+                                            <span class="no-panel-text">—</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="assignee-cell">
+                                        <span class="avatar-circle">{{ ticket.assignee_initial }}</span>
+                                        {{ ticket.assignee }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if ticket.manual == 'Yes' %}
+                                        <span class="badge-yn yes">Yes</span>
+                                    {% elif ticket.manual == 'No' %}
+                                        <span class="badge-yn no">No</span>
+                                    {% else %}
+                                        <span class="no-panel-text">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ticket.logs == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ticket.pr_to_prod == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
+                                        <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ticket.pr_validated == 'N/A' %}
+                                        <span class="badge-yn na">N/A</span>
+                                    {% elif ticket.pr_validated == '—' or not ticket.pr_validated %}
+                                        <span class="no-panel-text">—</span>
+                                    {% else %}
+                                        <span class="badge-yn {{ ticket.pr_validated_lower }}">{{ ticket.pr_validated }}</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- 🟢 Unified SIGNOFF Column -->
+                                <td>
+                                    <div class="signoff-group">
+                                        <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
+                                        <span class="badge-yn {% if ticket.signoffs.QA %}yes{% else %}no{% endif %}">QA</span>
+                                        <span class="badge-yn {% if ticket.signoffs.UAT %}yes{% else %}no{% endif %}">UAT</span>
+                                    </div>
+                                </td>
+                                <td>{{ ticket.alm_call }}</td>
+                                <td><span class="execution-order">{{ ticket.execution_order }}</span></td>
+                                <td>{{ ticket.change_hour }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend Scripts -->
+    <script>
+        const JIRA_BASE_URL = "{{ jira_url }}";
+
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+
+            document.getElementById(tabName).classList.add("active");
+            
+            // 🟢 CORREÇÃO: Habilita ativação direta caso chamado de fora
+            if (evt) {
+                evt.currentTarget.classList.add("active");
+            } else {
+                const btnMap = {
+                    'dashboard': 'tab-dashboard-btn',
+                    'candidates': 'tab-candidates-btn',
+                    'ready-for-production': 'tab-ready-for-production-btn',
+                    'done': 'tab-done-btn'
+                };
+                const activeBtn = document.getElementById(btnMap[tabName]);
+                if (activeBtn) activeBtn.classList.add("active");
+            }
+        }
+
+        // Reusable SVG Icons for View Page & Update Page
+        function getAlmExistsHtml(ticketId, pageUrl, devSign, qaSign, uatSign) {
+            return `
+                <div class="alm-action-group">
+                    <a href="${pageUrl}" target="_blank" class="btn-icon" title="View ALM Page in Confluence">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </a>
+                    <button id="update-alm-btn-${ticketId}" onclick="updateConfluencePage('${ticketId}')" class="btn-icon btn-icon-update" title="Sync Deployment Results Attachments to Confluence">
+                        <svg id="update-alm-icon-${ticketId}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                </div>`;
+        }
+
+        function renderSnowCell(ticket) {
+            if (ticket.snow_state === 'exists') {
+                return `
+                    <div id="snow-container-${ticket.ticket}">
+                        <a href="${ticket.snow_url}" target="_blank" class="confluence-link-success">
+                            ${ticket.snow_number}
+                        </a>
+                    </div>`;
+            } else if (ticket.snow_state === 'ready') {
+                return `
+                    <div id="snow-container-${ticket.ticket}">
+                        <button onclick="createSnowChange('${ticket.ticket}')" class="btn-confluence">
+                            Create SNOW
+                        </button>
+                    </div>`;
+            } else {
+                return `<div id="snow-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
+            }
+        }
+
+        function renderAlmCell(ticket) {
+            if (ticket.alm_page_state === 'exists') {
+                return `<div id="alm-container-${ticket.ticket}">${getAlmExistsHtml(ticket.ticket, ticket.alm_page_url)}</div>`;
+            } else if (ticket.alm_page_state === 'ready') {
+                return `
+                    <div id="alm-container-${ticket.ticket}">
+                        <button onclick="createConfluencePage('${ticket.ticket}')" class="btn-confluence">
+                            Create page
+                        </button>
+                    </div>`;
+            } else {
+                return `<div id="alm-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
+            }
+        }
+
+        // 🟢 ASYNCHRONOUS GLOBAL REFRESH FUNCTION
+        function refreshBoardData() {
+            const refreshBtn = document.getElementById("global-refresh-btn");
+            const refreshIcon = document.getElementById("refresh-icon");
+
+            refreshBtn.disabled = true;
+            refreshIcon.classList.add("spin-animation");
+
+            fetch('/api/refresh')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 1. Re-render Candidates Tab
+                    const candidatesTbody = document.getElementById("candidates-tbody");
+                    candidatesTbody.innerHTML = "";
+
+                    data.candidates.forEach(group => {
+                        candidatesTbody.innerHTML += `
+                            <tr class="row-candidates">
+                                <td colspan="14">${group.version}</td>
+                            </tr>`;
+
+                        group.tickets.forEach(ticket => {
+                            const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
+                            const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                            const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                            const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                            const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+                            const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                            const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                            const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
+
+                            candidatesTbody.innerHTML += `
+                                <tr>
+                                    <td>${renderSnowCell(ticket)}</td>
+                                    <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                    <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                    <td>${cloudBadge}</td>
+                                    <td><span class="badge-status status-${ticket.status_lower_dashed}">${ticket.status}</span></td>
+                                    <td>${renderAlmCell(ticket)}</td>
+                                    <td>
+                                        <div class="assignee-cell">
+                                            <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                            ${ticket.assignee}
+                                        </div>
+                                    </td>
+                                    <td>${manualBadge}</td>
+                                    <td>${logsBadge}</td>
+                                    <td>${prProdBadge}</td>
+                                    <td>${prValidatedBadge}</td>
+                                    <td>
+                                        <div class="signoff-group">
+                                            <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                            <span class="badge-yn ${qaSignClass}">QA</span>
+                                            <span class="badge-yn ${uatSignClass}">UAT</span>
+                                        </div>
+                                    </td>
+                                    <td>${ticket.alm_call}</td>
+                                    <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                    <td>${ticket.change_hour}</td>
+                                </tr>`;
+                        });
+                    });
+
+                    // Re-render Ready for Production Tab com suporte a Grupos
+                    const readyProdTbody = document.getElementById("ready-prod-tbody");
+                    if (readyProdTbody) {
+                        readyProdTbody.innerHTML = "";
+
+                        data.ready_prod_tickets.forEach(group => {
+                            readyProdTbody.innerHTML += `
+                                <tr class="version-row">
+                                    <td colspan="15">${group.version}</td>
+                                </tr>`;
+
+                            group.tickets.forEach(ticket => {
+                                const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
+                                const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                                const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                                const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod === '—' || !ticket.pr_to_prod ? '<span class="no-panel-text">—</span>' : `<span class="pr-text">${ticket.pr_to_prod}</span>`);
+                                const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+                            
+                                const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                                const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                                const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
+
+                                readyProdTbody.innerHTML += `
+                                    <tr class="row-ready">
+                                        <td>${renderSnowCell(ticket)}</td>
+                                        <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                        <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                        <td>${cloudBadge}</td>
+                                        <td><span class="badge-status status-ready-for-production">${ticket.status}</span></td>
+                                        <td>${renderAlmCell(ticket)}</td>
+                                        <td>
+                                            <div class="assignee-cell">
+                                                <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                                ${ticket.assignee}
+                                            </div>
+                                        </td>
+                                        <td>${manualBadge}</td>
+                                        <td>${logsBadge}</td>
+                                        <td>${prProdBadge}</td>
+                                        <td>${prValidatedBadge}</td>
+                                        <td>
+                                            <div class="signoff-group">
+                                                <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                                <span class="badge-yn ${qaSignClass}">QA</span>
+                                                <span class="badge-yn ${uatSignClass}">UAT</span>
+                                            </div>
+                                        </td>
+                                        <td>${ticket.alm_call}</td>
+                                        <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                        <td>${ticket.change_hour}</td>
+                                    </tr>`;
+                            });
+                        });
+                    }                    
+
+                    // 2. Re-render Done Tab
+                    const doneTbody = document.getElementById("done-tbody");
+                    doneTbody.innerHTML = "";
+
+                    data.done_tickets.forEach(ticket => {
+                        const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
+                        const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
+                        const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
+                        const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                        const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+                            
+                        const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
+                        const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
+                        const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
+
+                        doneTbody.innerHTML += `
+                            <tr>
+                                <td>${renderSnowCell(ticket)}</td>
+                                <td><a href="${JIRA_BASE_URL}/browse/${ticket.ticket}" target="_blank" class="ticket-link">${ticket.ticket}</a></td>
+                                <td><span class="badge-type ${ticket.type_lower}">${ticket.type}</span></td>
+                                <td>${cloudBadge}</td>
+                                <td><span class="badge-status status-done">${ticket.status}</span></td>
+                                <td>${renderAlmCell(ticket)}</td>
+                                <td>
+                                    <div class="assignee-cell">
+                                        <span class="avatar-circle">${ticket.assignee_initial}</span>
+                                        ${ticket.assignee}
+                                    </div>
+                                </td>
+                                <td>${manualBadge}</td>
+                                <td>${logsBadge}</td>
+                                <td>${prProdBadge}</td>
+                                <td>${prValidatedBadge}</td>
+                                <td>
+                                    <div class="signoff-group">
+                                        <span class="badge-yn ${devSignClass}">DEVINT</span>
+                                        <span class="badge-yn ${qaSignClass}">QA</span>
+                                        <span class="badge-yn ${uatSignClass}">UAT</span>
+                                    </div>
+                                </td>
+                                <td>${ticket.alm_call}</td>
+                                <td><span class="execution-order">${ticket.execution_order}</span></td>
+                                <td>${ticket.change_hour}</td>
+                            </tr>`;
+                    });
+
+                    // 3. Update Charts
+                    productionChart.data.labels = data.chart_data.labels;
+                    productionChart.data.datasets[0].data = data.chart_data.counts;
+                    productionChart.update();
+
+                    // 🟢 ATUALIZADO: Atualiza dinamicamente o gráfico de status
+                    candidatesStatusChart.data.labels = data.candidates_chart_data.labels;
+                    candidatesStatusChart.data.datasets[0].data = data.candidates_chart_data.counts;
+                    candidatesStatusChart.update();
+                    
+                } else {
+                    alert("Failed to refresh: " + data.message);
+                }
+            })
+            .catch(error => {
+                alert("Network error while refreshing board: " + error);
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    refreshBtn.disabled = false;
+                    refreshIcon.classList.remove("spin-animation");
+                }, 600);
+            });
+        }
+
+        // Async Confluence Page Creation
+        function createConfluencePage(ticketId) {
+            const container = document.getElementById(`alm-container-${ticketId}`);
+            if (!container) return;
+
+            container.innerHTML = `<span class="loading-state">Creating...</span>`;
+
+            fetch(`/publish-page/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    container.innerHTML = getAlmExistsHtml(ticketId, data.url);
+                } else {
+                    alert(`Attention: ${data.message}`);
+                    container.innerHTML = `
+                        <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
+                            Retry create
+                        </button>`;
+                }
+            })
+            .catch(error => {
+                alert(`Network error: ${error}`);
+                container.innerHTML = `
+                    <button onclick="createConfluencePage('${ticketId}')" class="btn-confluence btn-error">
+                        Retry create
+                    </button>`;
+            });
+        }
+
+        // Async Confluence Page Attachment Sync (Update Page Button)
+        function updateConfluencePage(ticketId) {
+            const btn = document.getElementById(`update-alm-btn-${ticketId}`);
+            const icon = document.getElementById(`update-alm-icon-${ticketId}`);
+            if (!btn || !icon) return;
+
+            btn.disabled = true;
+            icon.classList.add("spin-animation");
+
+            fetch(`/update-page/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                icon.classList.remove("spin-animation");
+                if (data.success) {
+                    btn.classList.add("btn-icon-synced");
+                    btn.title = data.message;
+                    setTimeout(() => {
+                        btn.classList.remove("btn-icon-synced");
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    alert(`Update failed: ${data.message}`);
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                icon.classList.remove("spin-animation");
+                btn.disabled = false;
+                alert(`Network error while updating Confluence attachments: ${error}`);
+            });
+        }
+
+        // Async ServiceNow Change Request (CHG) Creation
+        function createSnowChange(ticketId) {
+            const container = document.getElementById(`snow-container-${ticketId}`);
+            if (!container) return;
+
+            container.innerHTML = `<span class="loading-state">Creating...</span>`;
+
+            fetch(`/create-snow/${ticketId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    container.innerHTML = `
+                        <a href="${data.url}" target="_blank" class="confluence-link-success">
+                            ${data.number}
+                        </a>`;
+                } else {
+                    alert(`Attention: ${data.message}`);
+                    container.innerHTML = `
+                        <button onclick="createSnowChange('${ticketId}')" class="btn-confluence btn-error">
+                            Retry SNOW
+                        </button>`;
+                }
+            })
+            .catch(error => {
+                alert(`Network error: ${error}`);
+                container.innerHTML = `
+                    <button onclick="createSnowChange('${ticketId}')" class="btn-confluence btn-error">
+                        Retry SNOW
+                    </button>`;
+            });
+        }
+
+        function applyTechnicalActivities(ticketKey, element) {
+            if (element.dataset.loading === "true") return;
+        
+            if (!confirm(`Deseja adicionar o Technical Activities do Confluence ao ticket ${ticketKey} no Jira?`)) {
+                return;
+            }
+        
+            element.dataset.loading = "true";
+            const tag = element.querySelector('.badge-tag');
+            const originalText = tag.textContent;
+            tag.textContent = "Gravando...";
+            element.style.opacity = "0.6";
+        
+            fetch('/api/add-technical-activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticket: ticketKey })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove o badge clicado visualmente
+                    element.style.transition = "all 0.3s ease";
+                    element.style.transform = "scale(0.8)";
+                    element.style.opacity = "0";
+        
+                    setTimeout(() => {
+                        element.remove();
+                        
+                        // Atualiza o contador de badges pendentes
+                        const countElem = document.getElementById('pending-ta-count');
+                        if (countElem) {
+                            let currentCount = parseInt(countElem.textContent) - 1;
+                            countElem.textContent = currentCount;
+                            if (currentCount <= 0) {
+                                const sec = document.getElementById('pending-ta-section');
+                                if (sec) sec.style.display = 'none';
+                            }
+                        }
+        
+                        // Dispara o refresh automático do board para o ticket entrar na tabela de Candidates
+                        if (typeof refreshBoardData === "function") {
+                            refreshBoardData();
+                        } else if (typeof fetchBoardData === "function") {
+                            fetchBoardData();
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 300);
+                } else {
+                    alert("Erro: " + (data.error || "Não foi possível atualizar o ticket no Jira."));
+                    tag.textContent = originalText;
+                    element.style.opacity = "1";
+                    element.dataset.loading = "false";
+                }
+            })
+            .catch(err => {
+                alert("Erro de conexão ao atualizar ticket.");
+                tag.textContent = originalText;
+                element.style.opacity = "1";
+                element.dataset.loading = "false";
+            });
+        }
+        
+        // Chart.js - Monday Carbon Bar Chart (Gráfico de Barras)
+        const ctx = document.getElementById('productionChart').getContext('2d');
+        const productionChart = new Chart(ctx, {
+            type: 'bar',  // 🟢 Alterado de 'line' para 'bar'
+            data: {
+                labels: {{ chart_data.labels | tojson }},
+                datasets: [{
+                    label: 'Tickets',
+                    data: {{ chart_data.counts | tojson }},
+                    borderColor: '#0086f0',             /* Azul Monday */
+                    backgroundColor: 'rgba(0, 134, 240, 0.65)', /* Azul semi-transparente clássico */
+                    borderWidth: 1.5,
+                    borderRadius: 4,                    /* Bordas das barras ligeiramente arredondadas */
+                    barThickness: 28                    /* Espessura fixa e limpa para as colunas */
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                // 🟢 INTERATIVIDADE: Redireciona para a aba de produção ao clicar em qualquer barra do gráfico
+                onClick: (evt, activeElements) => {
+                    if (activeElements.length > 0) {
+                        openTab(null, 'ready-for-production');
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#2d3135', display: false }, /* Remove linhas verticais para visual limpo */
+                        ticks: { color: '#c5c7d0' }
+                    },
+                    y: {
+                        grid: { color: '#2d3135' },
+                        ticks: { color: '#c5c7d0', stepSize: 1 },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Chart.js - Monday Carbon Horizontal Bar Chart (Candidates por Status)
+        const candidatesCtx = document.getElementById('candidatesStatusChart').getContext('2d');
+        const candidatesStatusChart = new Chart(candidatesCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ candidates_chart_data.labels | tojson }},
+                datasets: [{
+                    label: 'Tickets',
+                    data: {{ candidates_chart_data.counts | tojson }},
+                    borderColor: '#00c875',             /* Verde Feito da Monday */
+                    backgroundColor: 'rgba(0, 200, 117, 0.65)',
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                    barThickness: 20
+                }]
+            },
+            options: {
+                indexAxis: 'y',  /* 🟢 Torna o gráfico HORIZONTAL */
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#2d3135' },
+                        ticks: { color: '#c5c7d0', stepSize: 1 },
+                        beginAtZero: true
+                    },
+                    y: {
+                        grid: { color: '#2d3135', display: false }, /* Limpa grades do eixo de nomes */
+                        ticks: { color: '#c5c7d0' }
+                    }
+                }
+            }
+        });        
+    </script>
+    <script>
+        // Gerencia o dropdown do perfil de forma robusta
+        function toggleProfileDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('profile-dropdown');
+            dropdown.classList.toggle('active');
+        }
+    
+        // Fecha o dropdown caso o usuário clique fora dele
+        window.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('profile-dropdown');
+            if (dropdown && dropdown.classList.contains('active')) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        function showGithubEditBox(event) {
+            event.stopPropagation();
+            document.getElementById('github-display-row').style.display = 'none';
+            const editBox = document.getElementById('github-edit-box');
+            editBox.style.display = 'flex';
+            document.getElementById('github-user-input').focus();
+        }
+        
+        function saveGithubUser(event) {
+            event.stopPropagation();
+            const input = document.getElementById('github-user-input');
+            const btn = document.getElementById('github-save-btn');
+            const icon = document.getElementById('github-save-icon');
+            const githubVal = input.value.trim();
+        
+            if (!githubVal) return;
+        
+            // Desativa o botão e inicia a rotação suave do Refresh idêntico ao global
+            btn.disabled = true;
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Insere o SVG das duas setas curvas com 14px (Sem aninhamento!)
+            icon.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            `;
+        
+            fetch('/api/save-github-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ github: githubVal })
+            })
+            .then(res => res.json())
+            .then(data => {
+                // Restaura o botão e o ícone de disquete original
+                btn.disabled = false;
+                icon.style.animation = 'none';
+                icon.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                `;
+        
+                if (data.success) {
+                    // Atualiza o texto na tela e esconde o campo de edição sem dar reload!
+                    document.getElementById('github-display-text').textContent = '@' + data.github;
+                    input.value = data.github;
+                    document.getElementById('github-edit-box').style.display = 'none';
+                    document.getElementById('github-display-row').style.display = 'flex';
+                } else {
+                    alert(data.error || 'Erro ao salvar no Jira.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                icon.style.animation = 'none';
+                icon.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                `;
+                alert('Erro de conexão ao salvar.');
+            });
+        }        
+    </script>    
+</body>
+</html>
