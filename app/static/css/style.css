@@ -791,11 +791,6 @@ body {
 }
 
 /* Estados ativos da bolinha e texto */
-.pr-step-item.active .pr-step-label {
-    color: #ffffff;
-    font-weight: 700;
-}
-
 .pr-step-item.active.dot-green .pr-step-dot {
     background: #00ca72;
     box-shadow: 0 0 10px rgba(0, 202, 114, 0.8);
@@ -809,6 +804,16 @@ body {
 .pr-step-item.active.dot-red .pr-step-dot {
     background: #e2445c;
     box-shadow: 0 0 10px rgba(226, 68, 92, 0.8);
+}
+
+.pr-step-item.active.dot-red .pr-step-dot {
+    background: #e2445c;
+    box-shadow: 0 0 10px rgba(226, 68, 92, 0.8);
+}
+
+.pr-step-item.active.dot-blue .pr-step-dot {
+    background: #0086f0;
+    box-shadow: 0 0 10px rgba(0, 134, 240, 0.8);
 }
 
 .pr-step-item.active.dot-gray .pr-step-dot {

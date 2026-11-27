@@ -741,10 +741,10 @@
 
     function getStepDotClass(statusName) {
         const s = (statusName || "").toUpperCase();
+        if (s === "NOT STARTED" || s === "ERROR") return "dot-red";
+        if (s === "STAND BY") return "dot-blue";
         if (s === "DONE") return "dot-green";
-        if (s === "ERROR") return "dot-red";
-        if (s === "NOT STARTED") return "dot-gray";
-        return "dot-yellow"; // VALIDATING, STAND BY, APPROVING, DEPLOYING
+        return "dot-yellow"; // VALIDATING, APPROVING, DEPLOYING
     }
 
     function openPRModalFromBtn(btnEl) {
