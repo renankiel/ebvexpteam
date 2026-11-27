@@ -689,6 +689,38 @@
                 <span class="pr-modal-title" id="pr-modal-title">PULL REQUESTS</span>
                 <button type="button" class="pr-modal-close" onclick="closePRModal()">&times;</button>
             </div>
+
+            <div class="pr-modal-body">
+                <div class="pr-env-row">
+                    <div class="pr-env-name"></div>
+                    <div class="pr-env-pills"></div>
+                    <div class="pr-pipeline-track-header">
+                        <div class="pr-step-item">
+                            <span class="pr-step-label">NOT STARTED</span>
+                        </div>
+                        <div class="pr-step-item active dot-yellow">
+                            <span class="pr-step-label">VALIDATING</span>
+                        </div>
+                        <div class="pr-step-item ">
+                            <span class="pr-step-label">STAND BY</span>
+                        </div>
+                        <div class="pr-step-item ">
+                            <span class="pr-step-label">APPROVING</span>
+                        </div>
+                        <div class="pr-step-item ">
+                            <span class="pr-step-label">DEPLOYING</span>
+                        </div>
+                        <div class="pr-step-item ">
+                            <span class="pr-step-label">DONE</span>
+                        </div>
+                        <div class="pr-step-item ">
+                            <span class="pr-step-label">ERROR</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Preenchido via JS -->
+            </div>
+
             <div class="pr-modal-body" id="pr-modal-body">
                 <!-- Preenchido via JS -->
             </div>
@@ -757,7 +789,6 @@
                 stepsHtml += `
                     <div class="pr-step-item ${activeClass}">
                         <span class="pr-step-dot"></span>
-                        <span class="pr-step-label">${stepName}</span>
                     </div>
                 `;
             });
