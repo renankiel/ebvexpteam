@@ -687,3 +687,115 @@ def replace_adf_placeholders(node, replacements):
         return new_node
 
     return node
+
+
+def find_migration_table_in_ta(adf_description):
+    """
+    Procura especificamente dentro do expand 'Technical Activities'
+    pelo Info Panel 'MIGRATION' e retorna a tabela logo abaixo dele.
+    """
+    if not isinstance(adf_description, dict):
+        return None
+
+    def _find_ta_expand(node):
+        if isinstance(node, list):
+            for item in node:
+                res = _find_ta_expand(item)
+                if res:
+                    return res
+        elif isinstance(node, dict):
+            if node.get("type") == "expand":
+                title = node.get("attrs", {}).get("title", "")
+                if "technical activities" in title.strip().lower():
+                    return node
+            for child in node.get("content", []):
+                res = _find_ta_expand(child)
+                if res:
+                    return res
+        return None
+
+    ta_expand = _find_ta_expand(adf_description)
+    # Se encontrou o expand Technical Activities, busca o painel MIGRATION lá dentro;
+    # caso contrário, faz fallback na descrição inteira
+    search_root = ta_expand if ta_expand else adf_description
+    return find_panel_table(search_root, "MIGRATION")
+
+
+def extract_migration_prs_data(adf_description):
+    """
+    Lê a tabela abaixo do painel 'MIGRATION' (dentro de Technical Activities)
+    e retorna os status do cabeçalho e a lista de PRs de cada ambiente:
+    DEVINT, QA, UAT, PRD.
+    """
+    default_data = {
+        "DEVINT": {"status": "NOT STARTED", "prs": []},
+        "QA": {"status": "NOT STARTED", "prs": []},
+        "UAT": {"status": "NOT STARTED", "prs": []},
+        "PRD": {"status": "NOT STARTED", "prs": []}
+    }
+
+    table_node = find_migration_table_in_ta(adf_description)
+    if not table_node:
+        return default_data
+
+    rows = table_node.get("content", [])
+    col_env_map = {}  # {col_idx: 'DEVINT' | 'QA' | 'UAT' | 'PRD'}
+    data_rows = []
+
+    for row in rows:
+        if not isinstance(row, dict) or row.get("type") != "tableRow":
+            continue
+        cells = row.get("content", [])
+        if not cells:
+            continue
+
+        cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+        if "tableHeader" in cell_types:
+            for idx, cell in enumerate(cells):
+                header_text = extract_plain_text_adf(cell).upper()
+                matched_env = None
+                for env_key in ["DEVINT", "QA", "UAT", "PRD", "PROD"]:
+                    if env_key in header_text:
+                        matched_env = "PRD" if env_key == "PROD" else env_key
+                        break
+
+                if matched_env:
+                    col_env_map[idx] = matched_env
+                    # Procura o nó 'status' dentro do tableHeader
+                    status_text = "NOT STARTED"
+                    def _find_status(n):
+                        nonlocal status_text
+                        if isinstance(n, list):
+                            for i in n:
+                                _find_status(i)
+                        elif isinstance(n, dict):
+                            if n.get("type") == "status":
+                                st = n.get("attrs", {}).get("text", "").upper().strip()
+                                if st:
+                                    status_text = st
+                            for ch in n.get("content", []):
+                                _find_status(ch)
+                    _find_status(cell)
+                    default_data[matched_env]["status"] = status_text
+        else:
+            data_rows.append(cells)
+
+    # Percorre todas as linhas de dados da tabela MIGRATION para extrair os links/números de PR
+    for cells in data_rows:
+        for col_idx, env_name in col_env_map.items():
+            if col_idx < len(cells):
+                cell = cells[col_idx]
+                url, text = find_url_and_text_in_node(cell)
+                plain = extract_plain_text_adf(cell).strip()
+                if url or (plain and plain not in ["—", "-", "N/A"]):
+                    pr_num = text or plain
+                    # Extrai apenas os dígitos se vier como URL ou #20349
+                    m = re.search(r"(\d+)$", pr_num.strip())
+                    if m:
+                        pr_num = m.group(1)
+                    default_data[env_name]["prs"].append({
+                        "number": pr_num,
+                        "url": url or "#"
+                    })
+
+    return default_data

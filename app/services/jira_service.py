@@ -1,11 +1,13 @@
 import os
 import re
 import copy
+import json
 import requests
 from requests.auth import HTTPBasicAuth
 from flask import session
 from jira import JIRA
 from dotenv import load_dotenv
+from app.utils.adf_helpers import find_panel_table
 
 from app.utils.adf_helpers import (
     extract_plain_text_adf,
@@ -24,6 +26,8 @@ from app.utils.adf_helpers import (
     extract_sprints,
     extract_prd_status_adf,
     has_technical_activities_expand,
+    find_migration_table_in_ta,
+    extract_migration_prs_data
 )
 from app.services.confluence_service import (
     resolve_confluence_page_id,
@@ -287,6 +291,18 @@ def fetch_jira_data():
 
             prd_pr = extract_prd_pr_adf(description_adf)
             prd_status = extract_prd_status_adf(description_adf)
+
+            migration_prs = extract_migration_prs_data(description_adf)
+            # Pega o número da última PR de PRD (se existir na tabela MIGRATION ou do prd_pr antigo)
+            prd_prs_list = migration_prs.get("PRD", {}).get("prs", [])
+            if prd_prs_list:
+                pr_to_prod_num = prd_prs_list[-1].get("number", "—")
+                pr_to_prod_url = prd_prs_list[-1].get("url", "#")
+            else:
+                m_pr = re.search(r"(\d+)$", (prd_pr or "").strip())
+                pr_to_prod_num = m_pr.group(1) if m_pr else (prd_pr if prd_pr else "—")
+                pr_to_prod_url = prd_pr if (prd_pr and prd_pr.startswith("http")) else "#"
+
             alm_state, alm_url = inspect_alm_page_status(description_adf)
             logs_status = check_double_attachments(issue.raw, description_adf, alm_state, alm_url, issue.key)
 
@@ -339,6 +355,9 @@ def fetch_jira_data():
                 "logs": logs_val,
                 "logs_lower": logs_val.lower().replace("/", "-"),
                 "pr_to_prod": pr_to_prod_val,
+                "pr_to_prod_num": "N/A" if manual_val == "Yes" else pr_to_prod_num,
+                "pr_to_prod_url": pr_to_prod_url,
+                "migration_prs": migration_prs,
                 "pr_validated": pr_validated_val,
                 "pr_validated_lower": pr_validated_val.lower().replace("/", "-"),
                 "signoffs": signoff_statuses,
@@ -447,3 +466,259 @@ def fetch_jira_data():
             }
         ]
         return error_group, [], [], {"labels": [], "counts": []}, {"labels": [], "counts": []}, []
+
+
+def sync_ticket_prs_from_github(ticket_key):
+    """
+    1. Consulta as Pull Requests atreladas ao ticket na Dev Status API do Jira.
+    2. Identifica o ambiente pela branch de destino (DEVINT, QA, UAT, PRD/PROD).
+    3. Localiza a tabela abaixo do Info Panel 'MIGRATION' dentro do Expand 'Technical Activities'.
+    4. Atualiza o elemento Status no cabeçalho de cada ambiente:
+       - Quando ainda não existia PR no Jira e a PR está OPEN -> VALIDATING
+       - Quando a PR está CLOSED ou MERGED -> DEPLOYING
+    5. Grava os números/links das PRs nas linhas da tabela (criando novas linhas quando houver
+       mais de uma PR para o mesmo ambiente).
+    """
+    auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_TOKEN)
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
+    # 1. Busca id interno + description ADF atual do ticket
+    issue_url = f"{JIRA_URL}/rest/api/3/issue/{ticket_key}?fields=id,description"
+    resp = requests.get(issue_url, auth=auth, headers=headers, timeout=15)
+    if resp.status_code != 200:
+        return {"success": False, "message": f"Erro ao buscar ticket {ticket_key} no Jira (Status {resp.status_code})."}
+
+    issue_data = resp.json()
+    issue_id = issue_data.get("id")
+    description_adf = issue_data.get("fields", {}).get("description")
+
+    if not description_adf:
+        return {"success": False, "message": f"O ticket {ticket_key} não possui descrição ADF."}
+
+    table_node = find_migration_table_in_ta(description_adf)
+    if not table_node:
+        return {
+            "success": False,
+            "message": f"Tabela 'MIGRATION' dentro de 'Technical Activities' não encontrada no ticket {ticket_key}."
+        }
+
+    # 2. Consulta Dev Status API do Jira para buscar as PRs do GitHub
+    dev_status_url = f"{JIRA_URL}/rest/dev-status/latest/issue/detail"
+    params = {
+        "issueId": issue_id,
+        "applicationType": "oAuth-com.github.integration.production",
+        "dataType": "pullrequest"
+    }
+    dev_resp = requests.get(dev_status_url, params=params, auth=auth, headers=headers, timeout=15)
+    if dev_resp.status_code != 200:
+        return {"success": False, "message": f"Erro na Dev Status API (Status {dev_resp.status_code})."}
+
+    pull_requests = []
+    for app_detail in dev_resp.json().get("detail", []):
+        pull_requests.extend(app_detail.get("pullRequests", []) or app_detail.get("pullrequests", []))
+
+    # 3. Agrupa PRs por ambiente de destino (DEVINT, QA, UAT, PRD)
+    env_prs = {"DEVINT": [], "QA": [], "UAT": [], "PRD": []}
+
+    for pr in pull_requests:
+        pr_id_raw = str(pr.get("id", "")).strip().lstrip("#")
+        pr_url = pr.get("url", "").strip()
+        pr_status = str(pr.get("status", "")).upper().strip()  # OPEN, MERGED, DECLINED, CLOSED
+        pr_name = str(pr.get("name", "")).upper()
+
+        dest_branch = (
+            pr.get("destinationBranch")
+            or pr.get("targetBranch")
+            or pr.get("toBranch")
+            or (pr.get("destination") or {}).get("branch")
+            or (pr.get("target") or {}).get("branch")
+            or ""
+        )
+        if isinstance(dest_branch, dict):
+            dest_branch = dest_branch.get("name", "")
+        dest_upper = str(dest_branch).upper()
+
+        # Identifica qual dos 4 ambientes é o destino (pela branch ou pelo sufixo do título caso branch venha vazia)
+        target_env = None
+        for candidate in ["DEVINT", "QA", "UAT", "PRD", "PROD"]:
+            if candidate in dest_upper or pr_name.endswith(f"-{candidate}") or f"-{candidate}-" in pr_name:
+                target_env = "PRD" if candidate == "PROD" else candidate
+                break
+
+        if target_env:
+            env_prs[target_env].append({
+                "number": pr_id_raw or "PR",
+                "url": pr_url,
+                "status": pr_status
+            })
+
+    # 4. Mapeia colunas da tabela MIGRATION e verifica quais PRs já existiam antes no Jira
+    existing_migration = extract_migration_prs_data(description_adf)
+
+    rows = table_node.get("content", [])
+    header_row = None
+    col_env_map = {}  # {col_idx: 'DEVINT' | 'QA' | 'UAT' | 'PRD'}
+    num_cols = 4
+
+    for row in rows:
+        if isinstance(row, dict) and row.get("type") == "tableRow":
+            cells = row.get("content", [])
+            cell_types = [c.get("type") for c in cells if isinstance(c, dict)]
+            if "tableHeader" in cell_types:
+                header_row = row
+                num_cols = len(cells)
+                for idx, cell in enumerate(cells):
+                    h_text = extract_plain_text_adf(cell).upper()
+                    for cand in ["DEVINT", "QA", "UAT", "PRD", "PROD"]:
+                        if cand in h_text:
+                            col_env_map[idx] = "PRD" if cand == "PROD" else cand
+                            break
+                break
+
+    if not header_row or not col_env_map:
+        return {"success": False, "message": "Cabeçalho da tabela MIGRATION não possui as colunas DEVINT, QA, UAT, PRD."}
+
+    # Helper para atualizar o elemento Status dentro do tableHeader da coluna
+    STATUS_COLORS = {
+        "NOT STARTED": "neutral",
+        "VALIDATING": "yellow",
+        "STAND BY": "purple",
+        "APPROVING": "blue",
+        "DEPLOYING": "blue",
+        "DONE": "green",
+        "ERROR": "red"
+    }
+
+    def _set_header_status(header_cell, env_label, new_status_text):
+        color = STATUS_COLORS.get(new_status_text.upper(), "neutral")
+        # Tenta substituir in-place se já existir um nó status no header_cell
+        updated_in_place = False
+
+        def _replace_status(node):
+            nonlocal updated_in_place
+            if isinstance(node, list):
+                for item in node:
+                    _replace_status(item)
+            elif isinstance(node, dict):
+                if node.get("type") == "status":
+                    node["attrs"] = {
+                        "text": new_status_text,
+                        "color": color,
+                        "localId": node.get("attrs", {}).get("localId", f"status-{env_label.lower()}"),
+                        "style": ""
+                    }
+                    updated_in_place = True
+                for child in node.get("content", []):
+                    _replace_status(child)
+
+        _replace_status(header_cell)
+
+        if not updated_in_place:
+            header_cell["content"] = [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": f"{env_label} ", "marks": [{"type": "strong"}]},
+                        {
+                            "type": "status",
+                            "attrs": {
+                                "text": new_status_text,
+                                "color": color,
+                                "localId": f"status-{env_label.lower()}",
+                                "style": ""
+                            }
+                        }
+                    ]
+                }
+            ]
+
+    # 5. Atualiza o status no cabeçalho de cada coluna conforme as regras:
+    # - Se não existia PR no Jira e veio PR OPEN -> muda para VALIDATING
+    # - Se a PR veio CLOSED / MERGED -> muda para DEPLOYING
+    header_cells = header_row.get("content", [])
+    for col_idx, env_key in col_env_map.items():
+        prs_for_env = env_prs.get(env_key, [])
+        if not prs_for_env:
+            continue
+
+        had_pr_before = len(existing_migration.get(env_key, {}).get("prs", [])) > 0
+        current_header_status = existing_migration.get(env_key, {}).get("status", "NOT STARTED").upper()
+
+        # Verifica estados das PRs desse ambiente
+        any_closed_or_merged = any(p["status"] in ["MERGED", "CLOSED", "DECLINED"] for p in prs_for_env)
+        any_open = any(p["status"] == "OPEN" for p in prs_for_env)
+
+        new_status = None
+        if any_closed_or_merged:
+            # Quando estiver CLOSED/MERGED muda para DEPLOYING (a menos que já esteja DONE)
+            if current_header_status != "DONE":
+                new_status = "DEPLOYING"
+        elif any_open and (not had_pr_before or current_header_status == "NOT STARTED"):
+            # Quando no Jira ainda não existir a PR e ela estiver OPEN -> VALIDATING
+            new_status = "VALIDATING"
+
+        if new_status and col_idx < len(header_cells):
+            _set_header_status(header_cells[col_idx], env_key, new_status)
+
+    # 6. Reconstrói as linhas de dados da tabela MIGRATION (criando novas linhas se houver >1 PR para o mesmo ambiente)
+    max_rows_needed = max([len(env_prs[e]) for e in ["DEVINT", "QA", "UAT", "PRD"]] + [1])
+
+    new_data_rows = []
+    for row_idx in range(max_rows_needed):
+        row_cells = []
+        for col_idx in range(num_cols):
+            env_key = col_env_map.get(col_idx)
+            prs_list = env_prs.get(env_key, []) if env_key else []
+
+            if row_idx < len(prs_list):
+                pr_item = prs_list[row_idx]
+                cell_content = [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": str(pr_item["number"]),
+                                "marks": [
+                                    {
+                                        "type": "link",
+                                        "attrs": {"href": pr_item["url"]}
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            else:
+                cell_content = [{"type": "paragraph", "content": []}]
+
+            row_cells.append({
+                "type": "tableCell",
+                "attrs": {},
+                "content": cell_content
+            })
+
+        new_data_rows.append({
+            "type": "tableRow",
+            "content": row_cells
+        })
+
+    table_node["content"] = [header_row] + new_data_rows
+
+    # 7. Salva o ADF atualizado no Jira
+    ok, msg = update_jira_description_adf(ticket_key, description_adf)
+    if not ok:
+        return {"success": False, "message": msg}
+
+    updated_migration_prs = extract_migration_prs_data(description_adf)
+    prd_list = updated_migration_prs.get("PRD", {}).get("prs", [])
+    pr_to_prod_num = prd_list[-1]["number"] if prd_list else "—"
+    pr_to_prod_url = prd_list[-1]["url"] if prd_list else "#"
+
+    return {
+        "success": True,
+        "message": f"PRs sincronizadas com sucesso para {ticket_key}!",
+        "migration_prs": updated_migration_prs,
+        "pr_to_prod_num": pr_to_prod_num,
+        "pr_to_prod_url": pr_to_prod_url
+    }

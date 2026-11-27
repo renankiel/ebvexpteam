@@ -19,7 +19,9 @@ from .adf_helpers import (
     extract_sprints,
     extract_prd_status_adf,
     has_technical_activities_expand,
-    replace_adf_placeholders
+    replace_adf_placeholders,
+    find_migration_table_in_ta,
+    extract_migration_prs_data
 )
 
 __all__ = [
@@ -43,5 +45,7 @@ __all__ = [
     "extract_sprints",
     "extract_prd_status_adf",
     "has_technical_activities_expand",
-    "replace_adf_placeholders"
+    "replace_adf_placeholders",
+    "find_migration_table_in_ta",
+    "extract_migration_prs_data"
 ]

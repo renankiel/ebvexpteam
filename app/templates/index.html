@@ -192,7 +192,7 @@
                             <th>Assignee</th>
                             <th>Manual?</th>
                             <th>Logs?</th>
-                            <th>PR to Prod</th>
+                            <th>Pull Requests</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified Column Header -->
                             <th>ALM Call</th>
@@ -287,15 +287,41 @@
                                             <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        {% if ticket.pr_to_prod == 'N/A' %}
-                                            <span class="badge-yn na">N/A</span>
-                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
-                                            <span class="no-panel-text">—</span>
+                                    <!-- Coluna Pull Requests (Olho + Sync + Número PR Prod) -->
+                                    <td class="pr-column-cell">
+                                        {% if ticket.manual == 'Yes' or ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge badge-na">N/A</span>
                                         {% else %}
-                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                            <div class="pr-actions-wrapper" data-ticket="{{ ticket.ticket }}" data-migration='{{ ticket.migration_prs | tojson | safe }}'>
+                                                <!-- Botão 1: Visualizar Modal de PRs -->
+                                                <button type="button" class="icon-action-btn pr-view-btn" title="Visualizar Pull Requests" onclick="openPRModalFromBtn(this)">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                </button>
+
+                                                <!-- Botão 2: Consultar / Sincronizar PRs na API do Jira -->
+                                                <button type="button" class="icon-action-btn pr-sync-btn" title="Sincronizar PRs com Jira/GitHub" onclick="syncTicketPRs('{{ ticket.ticket }}', this)">
+                                                    <svg class="sync-svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                    </svg>
+                                                </button>
+
+                                                <!-- Último elemento: Número da PR de Produção -->
+                                                <span class="pr-prod-number-slot">
+                                                    {% if ticket.pr_to_prod_num and ticket.pr_to_prod_num != '—' %}
+                                                        <a href="{{ ticket.pr_to_prod_url }}" target="_blank" class="pr-prod-pill">{{ ticket.pr_to_prod_num }}</a>
+                                                    {% else %}
+                                                        <span class="pr-prod-empty">—</span>
+                                                    {% endif %}
+                                                </span>
+                                            </div>
                                         {% endif %}
                                     </td>
+
                                     <td>
                                         {% if ticket.pr_validated == 'N/A' %}
                                             <span class="badge-yn na">N/A</span>
@@ -341,7 +367,7 @@
                             <th>Assignee</th>
                             <th>Manual?</th>
                             <th>Logs?</th>
-                            <th>PR to Prod</th>
+                            <th>Pull Requests</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified -->
                             <th>ALM Call</th>
@@ -430,13 +456,38 @@
                                             <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        {% if ticket.pr_to_prod == 'N/A' %}
-                                            <span class="badge-yn na">N/A</span>
-                                        {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
-                                            <span class="no-panel-text">—</span>
+                                    <!-- Coluna Pull Requests (Olho + Sync + Número PR Prod) -->
+                                    <td class="pr-column-cell">
+                                        {% if ticket.manual == 'Yes' or ticket.pr_to_prod == 'N/A' %}
+                                            <span class="badge badge-na">N/A</span>
                                         {% else %}
-                                            <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                            <div class="pr-actions-wrapper" data-ticket="{{ ticket.ticket }}" data-migration='{{ ticket.migration_prs | tojson | safe }}'>
+                                                <!-- Botão 1: Visualizar Modal de PRs -->
+                                                <button type="button" class="icon-action-btn pr-view-btn" title="Visualizar Pull Requests" onclick="openPRModalFromBtn(this)">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                </button>
+
+                                                <!-- Botão 2: Consultar / Sincronizar PRs na API do Jira -->
+                                                <button type="button" class="icon-action-btn pr-sync-btn" title="Sincronizar PRs com Jira/GitHub" onclick="syncTicketPRs('{{ ticket.ticket }}', this)">
+                                                    <svg class="sync-svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                    </svg>
+                                                </button>
+
+                                                <!-- Último elemento: Número da PR de Produção -->
+                                                <span class="pr-prod-number-slot">
+                                                    {% if ticket.pr_to_prod_num and ticket.pr_to_prod_num != '—' %}
+                                                        <a href="{{ ticket.pr_to_prod_url }}" target="_blank" class="pr-prod-pill">{{ ticket.pr_to_prod_num }}</a>
+                                                    {% else %}
+                                                        <span class="pr-prod-empty">—</span>
+                                                    {% endif %}
+                                                </span>
+                                            </div>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -485,7 +536,7 @@
                             <th>Assignee</th>
                             <th>Manual?</th>
                             <th>Logs?</th>
-                            <th>PR to Prod</th>
+                            <th>Pull Requests</th>
                             <th>PR Validated?</th>
                             <th>Signoff?</th> <!-- 🟢 Unified -->
                             <th>ALM Call</th>
@@ -570,13 +621,36 @@
                                         <span class="badge-yn {{ ticket.logs_lower }}">{{ ticket.logs }}</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    {% if ticket.pr_to_prod == 'N/A' %}
-                                        <span class="badge-yn na">N/A</span>
-                                    {% elif ticket.pr_to_prod == '—' or not ticket.pr_to_prod %}
-                                        <span class="no-panel-text">—</span>
+                                <!-- Coluna Pull Requests -->
+                                <td class="pr-column-cell">
+                                    {% if ticket.manual == 'Yes' or ticket.pr_to_prod == 'N/A' %}
+                                        <span class="badge badge-na">N/A</span>
                                     {% else %}
-                                        <span class="pr-text">{{ ticket.pr_to_prod }}</span>
+                                        <div class="pr-actions-wrapper" data-ticket="{{ ticket.ticket }}" data-migration='{{ ticket.migration_prs | tojson | safe }}'>
+                                            <!-- Botão 1: Visualizar Modal de PRs -->
+                                            <button type="button" class="icon-action-btn pr-view-btn" title="Visualizar Pull Requests" onclick="openPRModalFromBtn(this)">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                    <circle cx="12" cy="12" r="3"></circle>
+                                                </svg>
+                                            </button>
+                                            <!-- Botão 2: Sincronizar PRs -->
+                                            <button type="button" class="icon-action-btn pr-sync-btn" title="Sincronizar PRs com Jira/GitHub" onclick="syncTicketPRs('{{ ticket.ticket }}', this)">
+                                                <svg class="sync-svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                                </svg>
+                                            </button>
+                                            <!-- Número da PR de Produção -->
+                                            <span class="pr-prod-number-slot">
+                                                {% if ticket.pr_to_prod_num and ticket.pr_to_prod_num != '—' %}
+                                                    <a href="{{ ticket.pr_to_prod_url }}" target="_blank" class="pr-prod-pill">{{ ticket.pr_to_prod_num }}</a>
+                                                {% else %}
+                                                    <span class="pr-prod-empty">—</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -589,7 +663,7 @@
                                     {% endif %}
                                 </td>
                                 
-                                <!-- 🟢 Unified SIGNOFF Column -->
+                                <!-- SIGNOFF Column -->
                                 <td>
                                     <div class="signoff-group">
                                         <span class="badge-yn {% if ticket.signoffs.DEVINT %}yes{% else %}no{% endif %}">DEVINT</span>
@@ -605,10 +679,143 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div>        
     </div>
 
+    <!-- MODAL DE PULL REQUESTS -->
+    <div id="pr-modal-overlay" class="pr-modal-overlay" onclick="if(event.target === this) closePRModal()">
+        <div class="pr-modal-card">
+            <div class="pr-modal-header">
+                <span class="pr-modal-title" id="pr-modal-title">PULL REQUESTS</span>
+                <button type="button" class="pr-modal-close" onclick="closePRModal()">&times;</button>
+            </div>
+            <div class="pr-modal-body" id="pr-modal-body">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+    </div>
+    
     <!-- Frontend Scripts -->
+    <script>
+    const PR_PIPELINE_STEPS = [
+        "NOT STARTED",
+        "VALIDATING",
+        "STAND BY",
+        "APPROVING",
+        "DEPLOYING",
+        "DONE",
+        "ERROR"
+    ];
+
+    function getStepDotClass(statusName) {
+        const s = (statusName || "").toUpperCase();
+        if (s === "DONE") return "dot-green";
+        if (s === "ERROR") return "dot-red";
+        if (s === "NOT STARTED") return "dot-gray";
+        return "dot-yellow"; // VALIDATING, STAND BY, APPROVING, DEPLOYING
+    }
+
+    function openPRModalFromBtn(btnEl) {
+        const wrapper = btnEl.closest('.pr-actions-wrapper');
+        if (!wrapper) return;
+        const ticketKey = wrapper.getAttribute('data-ticket') || '';
+        let migrationData = {};
+        try {
+            migrationData = JSON.parse(wrapper.getAttribute('data-migration') || '{}');
+        } catch (e) {
+            console.error("Erro ao ler JSON de PRs:", e);
+        }
+        renderPRModal(ticketKey, migrationData);
+    }
+
+    function renderPRModal(ticketKey, migrationData) {
+        const modalTitle = document.getElementById('pr-modal-title');
+        const modalBody = document.getElementById('pr-modal-body');
+        modalTitle.textContent = `PULL REQUESTS — ${ticketKey}`;
+
+        const envs = ["DEVINT", "QA", "UAT", "PRD"];
+        let html = '';
+
+        envs.forEach(env => {
+            const envObj = (migrationData && migrationData[env]) ? migrationData[env] : { status: "NOT STARTED", prs: [] };
+            const currentStatus = (envObj.status || "NOT STARTED").toUpperCase().trim();
+            const prsList = envObj.prs || [];
+
+            let prsPillsHtml = '';
+            if (prsList.length > 0) {
+                prsPillsHtml = prsList.map(pr => 
+                    `<a href="${pr.url || '#'}" target="_blank" class="pr-modal-num-pill">${pr.number}</a>`
+                ).join('');
+            } else {
+                prsPillsHtml = `<span class="pr-modal-num-empty">—</span>`;
+            }
+
+            let stepsHtml = '';
+            PR_PIPELINE_STEPS.forEach(stepName => {
+                const isActive = (stepName === currentStatus);
+                const activeClass = isActive ? `active ${getStepDotClass(stepName)}` : '';
+                stepsHtml += `
+                    <div class="pr-step-item ${activeClass}">
+                        <span class="pr-step-dot"></span>
+                        <span class="pr-step-label">${stepName}</span>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div class="pr-env-row">
+                    <div class="pr-env-name">${env}</div>
+                    <div class="pr-env-pills">${prsPillsHtml}</div>
+                    <div class="pr-pipeline-track">
+                        ${stepsHtml}
+                    </div>
+                </div>
+            `;
+        });
+
+        modalBody.innerHTML = html;
+        document.getElementById('pr-modal-overlay').classList.add('show');
+    }
+
+    function closePRModal() {
+        document.getElementById('pr-modal-overlay').classList.remove('show');
+    }
+
+    async function syncTicketPRs(ticketKey, btnEl) {
+        if (btnEl.classList.contains('loading')) return;
+        btnEl.classList.add('loading');
+
+        try {
+            const response = await fetch(`/api/sync-prs/${ticketKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                const wrapper = btnEl.closest('.pr-actions-wrapper');
+                if (wrapper) {
+                    wrapper.setAttribute('data-migration', JSON.stringify(data.migration_prs || {}));
+                    const slot = wrapper.querySelector('.pr-prod-number-slot');
+                    if (slot) {
+                        if (data.pr_to_prod_num && data.pr_to_prod_num !== '—') {
+                            slot.innerHTML = `<a href="${data.pr_to_prod_url || '#'}" target="_blank" class="pr-prod-pill">${data.pr_to_prod_num}</a>`;
+                        } else {
+                            slot.innerHTML = `<span class="pr-prod-empty">—</span>`;
+                        }
+                    }
+                }
+            } else {
+                alert(data.message || "Não foi possível sincronizar as PRs.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erro de comunicação ao sincronizar PRs.");
+        } finally {
+            btnEl.classList.remove('loading');
+        }
+    }
+    </script>
     <script>
         const JIRA_BASE_URL = "{{ jira_url }}";
 
@@ -695,6 +902,50 @@
                 return `<div id="alm-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
             }
         }
+        function renderAlmCell(ticket) {
+            if (ticket.alm_page_state === 'exists') {
+                return `<div id="alm-container-${ticket.ticket}">${getAlmExistsHtml(ticket.ticket, ticket.alm_page_url)}</div>`;
+            } else if (ticket.alm_page_state === 'ready') {
+                return `
+                    <div id="alm-container-${ticket.ticket}">
+                        <button onclick="createConfluencePage('${ticket.ticket}')" class="btn-confluence">
+                            Create page
+                        </button>
+                    </div>`;
+            } else {
+                return `<div id="alm-container-${ticket.ticket}"><span class="no-panel-text">—</span></div>`;
+            }
+        }
+
+        // 🟢 NOVA FUNÇÃO: Renderiza os 2 botões (Olho + Sync) + Número da PR de Produção no Refresh
+        function renderPrCell(ticket) {
+            if (ticket.manual === 'Yes' || ticket.pr_to_prod === 'N/A') {
+                return `<span class="badge badge-na">N/A</span>`;
+            }
+            const migrationJson = JSON.stringify(ticket.migration_prs || {}).replace(/'/g, "&apos;");
+            const prodNumHtml = (ticket.pr_to_prod_num && ticket.pr_to_prod_num !== '—')
+                ? `<a href="${ticket.pr_to_prod_url || '#'}" target="_blank" class="pr-prod-pill">${ticket.pr_to_prod_num}</a>`
+                : `<span class="pr-prod-empty">—</span>`;
+
+            return `
+                <div class="pr-actions-wrapper" data-ticket="${ticket.ticket}" data-migration='${migrationJson}'>
+                    <button type="button" class="icon-action-btn pr-view-btn" title="Visualizar Pull Requests" onclick="openPRModalFromBtn(this)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                    <button type="button" class="icon-action-btn pr-sync-btn" title="Sincronizar PRs com Jira/GitHub" onclick="syncTicketPRs('${ticket.ticket}', this)">
+                        <svg class="sync-svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                    <span class="pr-prod-number-slot">${prodNumHtml}</span>
+                </div>
+            `;
+        }
 
         // 🟢 ASYNCHRONOUS GLOBAL REFRESH FUNCTION
         function refreshBoardData() {
@@ -715,15 +966,16 @@
                     data.candidates.forEach(group => {
                         candidatesTbody.innerHTML += `
                             <tr class="row-candidates">
-                                <td colspan="14">${group.version}</td>
+                                <td colspan="15">${group.version}</td>
                             </tr>`;
 
                         group.tickets.forEach(ticket => {
                             const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                             const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                             const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
-                            const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                            const prProdBadge = renderPrCell(ticket);
                             const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
+
                             const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
                             const qaSignClass = ticket.signoffs.QA ? 'yes' : 'no';
                             const uatSignClass = ticket.signoffs.UAT ? 'yes' : 'no';
@@ -744,7 +996,7 @@
                                     </td>
                                     <td>${manualBadge}</td>
                                     <td>${logsBadge}</td>
-                                    <td>${prProdBadge}</td>
+                                    <td class="pr-column-cell">${prProdBadge}</td>
                                     <td>${prValidatedBadge}</td>
                                     <td>
                                         <div class="signoff-group">
@@ -764,7 +1016,6 @@
                     const readyProdTbody = document.getElementById("ready-prod-tbody");
                     if (readyProdTbody) {
                         readyProdTbody.innerHTML = "";
-
                         data.ready_prod_tickets.forEach(group => {
                             readyProdTbody.innerHTML += `
                                 <tr class="version-row">
@@ -775,7 +1026,7 @@
                                 const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                                 const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                                 const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
-                                const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod === '—' || !ticket.pr_to_prod ? '<span class="no-panel-text">—</span>' : `<span class="pr-text">${ticket.pr_to_prod}</span>`);
+                                const prProdBadge = renderPrCell(ticket);
                                 const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
                             
                                 const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
@@ -798,7 +1049,7 @@
                                         </td>
                                         <td>${manualBadge}</td>
                                         <td>${logsBadge}</td>
-                                        <td>${prProdBadge}</td>
+                                        <td class="pr-column-cell">${prProdBadge}</td>
                                         <td>${prValidatedBadge}</td>
                                         <td>
                                             <div class="signoff-group">
@@ -823,7 +1074,7 @@
                         const cloudBadge = (ticket.cloud === '—' || !ticket.cloud) ? '<span class="no-panel-text">—</span>' : `<span class="badge-cloud ${ticket.cloud_lower}">${ticket.cloud}</span>`;
                         const manualBadge = ticket.manual === 'Yes' ? '<span class="badge-yn yes">Yes</span>' : (ticket.manual === 'No' ? '<span class="badge-yn no">No</span>' : '<span class="no-panel-text">—</span>');
                         const logsBadge = ticket.logs === 'N/A' ? '<span class="badge-yn na">N/A</span>' : `<span class="badge-yn ${ticket.logs_lower}">${ticket.logs}</span>`;
-                        const prProdBadge = ticket.pr_to_prod === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_to_prod ? `<span class="pr-text">${ticket.pr_to_prod}</span>` : '');
+                        const prProdBadge = renderPrCell(ticket);
                         const prValidatedBadge = ticket.pr_validated === 'N/A' ? '<span class="badge-yn na">N/A</span>' : (ticket.pr_validated === '—' || !ticket.pr_validated ? '<span class="no-panel-text">—</span>' : `<span class="badge-yn ${ticket.pr_validated_lower}">${ticket.pr_validated}</span>`);
                             
                         const devSignClass = ticket.signoffs.DEVINT ? 'yes' : 'no';
@@ -846,7 +1097,7 @@
                                 </td>
                                 <td>${manualBadge}</td>
                                 <td>${logsBadge}</td>
-                                <td>${prProdBadge}</td>
+                                <td class="pr-column-cell">${prProdBadge}</td>
                                 <td>${prValidatedBadge}</td>
                                 <td>
                                     <div class="signoff-group">
@@ -866,7 +1117,6 @@
                     productionChart.data.datasets[0].data = data.chart_data.counts;
                     productionChart.update();
 
-                    // 🟢 ATUALIZADO: Atualiza dinamicamente o gráfico de status
                     candidatesStatusChart.data.labels = data.candidates_chart_data.labels;
                     candidatesStatusChart.data.datasets[0].data = data.candidates_chart_data.counts;
                     candidatesStatusChart.update();

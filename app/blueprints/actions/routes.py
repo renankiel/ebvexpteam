@@ -13,6 +13,7 @@ from app.utils.adf_helpers import (
 from app.services.jira_service import (
     update_jira_description_adf,
     append_technical_activities_to_jira_issue,
+    sync_ticket_prs_from_github
 )
 from app.services.confluence_service import (
     publish_to_confluence,
@@ -234,3 +235,11 @@ def api_add_technical_activities():
     except Exception as e:
         print(f"⚠️ Erro ao adicionar Technical Activities: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@actions_bp.route("/api/sync-prs/<ticket_id>", methods=["POST"])
+@login_required
+def api_sync_prs(ticket_id):
+    result = sync_ticket_prs_from_github(ticket_id)
+    status_code = 200 if result.get("success") else 400
+    return jsonify(result), status_code
